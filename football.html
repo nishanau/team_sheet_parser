@@ -1,0 +1,1134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Team Sheet PDF Parser</title>
+
+  <style>
+    :root{
+      --bg: #0b1220;
+      --panel: rgba(255,255,255,.06);
+      --panel2: rgba(255,255,255,.08);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.65);
+      --border: rgba(255,255,255,.12);
+      --accent: #7c5cff;
+      --accent2:#22c55e;
+      --danger:#ef4444;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      color: var(--text);
+      min-height: 100vh;
+      background:
+        radial-gradient(1200px 800px at 10% 10%, rgba(124,92,255,.35), transparent 60%),
+        radial-gradient(1000px 700px at 90% 20%, rgba(34,197,94,.20), transparent 55%),
+        radial-gradient(900px 700px at 50% 90%, rgba(59,130,246,.18), transparent 60%),
+        var(--bg);
+      padding: 28px;
+    }
+
+    .container{
+      max-width: 980px;
+      margin: 0 auto;
+      display: grid;
+      gap: 18px;
+    }
+
+    .header{
+      display:flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 12px;
+      padding: 22px 22px 6px 22px;
+    }
+
+    h1{
+      font-size: 22px;
+      margin:0;
+      letter-spacing: .2px;
+    }
+    .sub{
+      margin-top:6px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.4;
+      max-width: 62ch;
+    }
+
+    .card{
+      background: linear-gradient(180deg, var(--panel), rgba(255,255,255,.04));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 14px;
+      padding: 18px;
+    }
+
+    @media (max-width: 900px){
+      .grid{ grid-template-columns: 1fr; }
+    }
+
+    .drop{
+      border: 1px dashed rgba(255,255,255,.22);
+      background: rgba(0,0,0,.18);
+      border-radius: 16px;
+      padding: 18px;
+      display:flex;
+      gap: 14px;
+      align-items: center;
+      transition: .15s ease;
+      cursor: pointer;
+      min-height: 110px;
+    }
+    .drop:hover{ background: rgba(0,0,0,.24); border-color: rgba(255,255,255,.32); }
+    .drop.dragover{ background: rgba(124,92,255,.16); border-color: rgba(124,92,255,.55); }
+
+    .badge{
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      background: rgba(124,92,255,.22);
+      border: 1px solid rgba(124,92,255,.45);
+      display:grid;
+      place-items:center;
+      flex: 0 0 auto;
+    }
+    .badge svg{ opacity: .95; }
+
+    .filemeta{
+      display:flex;
+      flex-direction:column;
+      gap: 4px;
+      min-width: 0;
+    }
+    .filemeta .title{
+      font-weight: 600;
+      font-size: 14px;
+      white-space: nowrap;
+      overflow:hidden;
+      text-overflow: ellipsis;
+    }
+    .filemeta .hint{
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .controls{
+      display:flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .btn{
+      appearance:none;
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      padding: 11px 14px;
+      border-radius: 14px;
+      font-weight: 600;
+      cursor:pointer;
+      transition:.15s ease;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap: 8px;
+      user-select:none;
+    }
+    .btn:hover{ background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.22); }
+    .btn:active{ transform: translateY(1px); }
+    .btn.primary{
+      background: linear-gradient(135deg, rgba(124,92,255,.95), rgba(59,130,246,.85));
+      border-color: rgba(124,92,255,.55);
+    }
+    .btn.primary:hover{ filter: brightness(1.05); }
+    .btn[disabled]{
+      opacity: .55;
+      cursor: not-allowed;
+      transform:none;
+      filter:none;
+    }
+
+    .statrow{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .stat{
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.04);
+      border-radius: 16px;
+      padding: 14px;
+    }
+    .stat .k{
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .stat .v{
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing:.2px;
+      display:flex;
+      align-items:center;
+      gap: 8px;
+      min-height: 22px;
+    }
+
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.05);
+      font-size: 12px;
+      color: var(--muted);
+      width: fit-content;
+    }
+    .dot{
+      width: 8px;
+      height: 8px;
+      border-radius: 99px;
+      background: rgba(255,255,255,.35);
+    }
+    .ok .dot{ background: var(--accent2); }
+    .err .dot{ background: var(--danger); }
+    .work .dot{ background: #fbbf24; }
+
+    .out{
+      padding: 0 18px 18px 18px;
+      display:grid;
+      gap: 12px;
+    }
+    pre{
+      margin:0;
+      padding: 14px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,.22);
+      overflow:auto;
+      max-height: 420px;
+      line-height: 1.45;
+      font-size: 13px;
+      color: rgba(255,255,255,.88);
+    }
+
+    details{
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.03);
+      border-radius: 16px;
+      padding: 10px 12px;
+    }
+    summary{
+      cursor:pointer;
+      font-weight: 600;
+      color: rgba(255,255,255,.86);
+      font-size: 13px;
+      list-style: none;
+    }
+    summary::-webkit-details-marker{ display:none; }
+    .muted{ color: var(--muted); }
+
+    /* Hide the actual file input (we trigger it via dropzone click) */
+    #pdfFile, #excelFile{ display:none; }
+
+    /* Custom dropdown styles */
+    .styled-dropdown {
+      min-width: 140px;
+      padding: 10px 16px;
+      border-radius: 12px;
+      border: 1.5px solid var(--accent);
+      background: linear-gradient(90deg, var(--panel2) 70%, var(--panel) 100%);
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 600;
+      box-shadow: 0 2px 8px 0 rgba(124,92,255,0.07);
+      outline: none;
+      transition: border-color 0.18s, box-shadow 0.18s;
+      margin-bottom: 0;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      cursor: pointer;
+    }
+    .styled-dropdown:focus {
+      border-color: var(--accent2);
+      box-shadow: 0 0 0 2px rgba(34,197,94,0.13);
+    }
+    .styled-dropdown option {
+      color: #222;
+      background: #fff;
+      font-weight: 500;
+    }
+
+    .excel-section{
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+    .section-title{
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: var(--text);
+    }
+    .player-list{
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 8px;
+    }
+    .player-list li{
+      padding: 8px 12px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .match-result{
+      padding: 6px 10px;
+      background: rgba(34,197,94,.15);
+      border: 1px solid rgba(34,197,94,.3);
+      border-radius: 8px;
+      font-size: 13px;
+      color: rgba(34,197,94,1);
+      margin-bottom: 4px;
+    }
+    .match-result.not-found{
+      background: rgba(239,68,68,.15);
+      border-color: rgba(239,68,68,.3);
+      color: rgba(239,68,68,1);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container card">
+    <div class="header">
+      <div>
+        <h1>Team Sheet PDF Parser</h1>
+        <div class="sub">Upload a team sheet PDF and extract the <strong>Dodges Ferry Senior Men</strong> player names and the <strong>Round</strong> number using pdf.js.</div>
+      </div>
+      <div class="pill" id="statusPill">
+        <span class="dot"></span>
+        <span id="statusText">No file selected</span>
+      </div>
+    </div>
+
+    <!-- Selection Controls -->
+    <div class="card" style="margin: 0 0 32px 0; padding: 24px 24px 12px 24px; box-shadow: 0 2px 12px 0 rgba(124,92,255,0.08); border-radius: 22px; border: 1.5px solid var(--border); background: linear-gradient(90deg, var(--panel2) 60%, var(--panel) 100%);">
+      <div style="display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-end;">
+        <div style="display:flex; flex-direction:column; gap:7px; min-width:180px;">
+          <label for="leagueSelect" style="font-size:14px;font-weight:700;letter-spacing:.1px; color:var(--accent);">League</label>
+          <select id="leagueSelect" class="styled-dropdown">
+            <option value="SFL Premier League">SFL Premier League</option>
+            <option value="SFL Community League">SFL Community League</option>
+          </select>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:7px; min-width:120px;">
+          <label for="genderSelect" style="font-size:14px;font-weight:700;letter-spacing:.1px; color:var(--accent);">Gender</label>
+          <select id="genderSelect" class="styled-dropdown">
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </select>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:7px; min-width:180px;">
+          <label for="teamSelect" style="font-size:14px;font-weight:700;letter-spacing:.1px; color:var(--accent);">Team</label>
+          <select id="teamSelect" class="styled-dropdown">
+            <!-- Options populated by JS -->
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div>
+        <input id="pdfFile" type="file" accept="application/pdf" />
+
+        <div class="drop" id="dropZone" role="button" tabindex="0" aria-label="Upload PDF">
+          <div class="badge" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path d="M12 3v10" stroke="white" stroke-width="2" stroke-linecap="round"/>
+              <path d="M8 7l4-4 4 4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M4 14v4a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-4" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="filemeta">
+            <div class="title" id="fileName">Click to choose a PDF or drag & drop</div>
+            <div class="hint" id="fileHint">Accepts .pdf</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button class="btn primary" id="parseBtn" type="button" disabled>
+          Parse PDF
+        </button>
+        <button class="btn" id="clearPdfBtn" type="button" disabled>
+          Clear PDF
+        </button>
+
+        <div class="statrow">
+          <div class="stat">
+            <div class="k">Round</div>
+            <div class="v" id="roundValue">—</div>
+          </div>
+          <div class="stat">
+            <div class="k">Players found</div>
+            <div class="v" id="playerCount">—</div>
+          </div>
+        </div>
+
+        <div class="muted" style="font-size:12px; line-height:1.4">
+          If parsing fails, open “Debug extracted text” and adjust anchors/regex to match how your PDF text is emitted.
+        </div>
+      </div>
+    </div>
+
+    <div class="out">
+      <div>
+          <div class="muted" id="teamPlayersLabel" style="font-size:12px; margin:0 0 10px 2px"></div>
+        <div style="padding: 14px; border-radius: 16px; border: 1px solid var(--border); background: rgba(0,0,0,.22);">
+          <ul class="player-list" id="playersOut">
+            <li style="opacity:0.5;">No players found yet</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Excel Section -->
+    <div class="excel-section card" id="excelSection" style="display:none;">
+      <div class="header">
+        <div>
+          <div class="section-title">Step 2: Update Excel Tracker</div>
+          <div class="sub">Upload your player tracking Excel file to mark attendance for the players found in the PDF.</div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div>
+          <input id="excelFile" type="file" accept=".xlsx,.xls" />
+
+          <div class="drop" id="excelDropZone" role="button" tabindex="0" aria-label="Upload Excel">
+            <div class="badge" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <path d="M12 3v10" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                <path d="M8 7l4-4 4 4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M4 14v4a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-4" stroke="white" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="filemeta">
+              <div class="title" id="excelFileName">Click to choose an Excel file or drag & drop</div>
+              <div class="hint" id="excelFileHint">Accepts .xlsx or .xls</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="btn primary" id="updateExcelBtn" type="button" disabled>
+            Update Excel
+          </button>
+          <button class="btn" id="downloadExcelBtn" type="button" disabled>
+            Download Updated Excel
+          </button>
+          <button class="btn" id="clearExcelBtn" type="button" disabled>
+            Clear Excel
+          </button>
+
+          <div class="statrow">
+            <div class="stat">
+              <div class="k">Players Updated</div>
+              <div class="v" id="playersUpdated">—</div>
+            </div>
+            <div class="stat">
+              <div class="k">Round Column</div>
+              <div class="v" id="roundColumn">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="out" id="excelResults" style="display:none;">
+        <div>
+          <div class="muted" style="font-size:12px; margin:0 0 10px 2px">Excel Update Results</div>
+          <div style="padding: 14px; border-radius: 16px; border: 1px solid var(--border); background: rgba(0,0,0,.22); max-height: 400px; overflow-y: auto;">
+            <div id="matchResults"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- ExcelJS for Excel with full formatting preservation -->
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+
+  <script>
+    // Worker config
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+
+    // Selection elements
+    const leagueSelect = document.getElementById("leagueSelect");
+    const genderSelect = document.getElementById("genderSelect");
+    const teamSelect = document.getElementById("teamSelect");
+
+    // PDF/Excel elements
+    const fileInput   = document.getElementById("pdfFile");
+    const dropZone    = document.getElementById("dropZone");
+    const fileNameEl  = document.getElementById("fileName");
+    const fileHintEl  = document.getElementById("fileHint");
+    const parseBtn    = document.getElementById("parseBtn");
+    const clearPdfBtn = document.getElementById("clearPdfBtn");
+    const statusPill  = document.getElementById("statusPill");
+    const statusText  = document.getElementById("statusText");
+    const roundEl     = document.getElementById("roundValue");
+    const countEl     = document.getElementById("playerCount");
+    const playersOut  = document.getElementById("playersOut");
+    // Excel elements
+    const excelSection = document.getElementById("excelSection");
+    const excelFileInput = document.getElementById("excelFile");
+    const excelDropZone = document.getElementById("excelDropZone");
+    const excelFileNameEl = document.getElementById("excelFileName");
+    const excelFileHintEl = document.getElementById("excelFileHint");
+    const updateExcelBtn = document.getElementById("updateExcelBtn");
+    const downloadExcelBtn = document.getElementById("downloadExcelBtn");
+    const clearExcelBtn = document.getElementById("clearExcelBtn");
+    const playersUpdatedEl = document.getElementById("playersUpdated");
+    const roundColumnEl = document.getElementById("roundColumn");
+
+    // State
+    let selectedLeague = "SFL Premier League";
+    let selectedGender = "male";
+    let selectedTeam = "";
+    let selectedFile = null;
+    let selectedExcelFile = null;
+    let parsedPlayers = [];
+    let parsedRound = null;
+    let updatedWorkbook = null;
+
+    // League/team data
+    const leagueTeams = {
+      "SFL Premier League": [
+        "Brighton",
+        "Clarence",
+        "Glenorchy",
+        "Kingborough Tigers",
+        "Lauderdale",
+        "North Hobart"
+      ],
+      "SFL Community League": [
+        "Claremont",
+        "Cygnet",
+        "Dodges Ferry",
+        "Hobart",
+        "Huonville Lions",
+        "Hutchins",
+        "Lindisfarne",
+        "New Norfolk",
+        "Sorell",
+        "St Virgils",
+        "University"
+      ]
+    };
+
+    // Teams to exclude for Community League, Female
+    const communityFemaleExclusions = ["St Virgils", "University", "Hutchins"];
+
+    function updateTeamOptions() {
+      let teams = leagueTeams[selectedLeague] || [];
+      if (selectedLeague === "SFL Community League" && selectedGender === "female") {
+        teams = teams.filter(t => !communityFemaleExclusions.includes(t));
+      }
+      // Clear and repopulate
+      teamSelect.innerHTML = "";
+      teams.forEach(team => {
+        const opt = document.createElement("option");
+        opt.value = team;
+        opt.textContent = team;
+        teamSelect.appendChild(opt);
+      });
+      // Set selectedTeam to first available
+      selectedTeam = teams[0] || "";
+      teamSelect.value = selectedTeam;
+    }
+
+    // Event listeners for dropdowns
+    leagueSelect.addEventListener("change", e => {
+      selectedLeague = leagueSelect.value;
+      updateTeamOptions();
+      updateTeamPlayersLabel();
+    });
+    genderSelect.addEventListener("change", e => {
+      selectedGender = genderSelect.value;
+      updateTeamOptions();
+      updateTeamPlayersLabel();
+    });
+    teamSelect.addEventListener("change", e => {
+      selectedTeam = teamSelect.value;
+      updateTeamPlayersLabel();
+    });
+
+    // Initial population
+    updateTeamOptions();
+
+    function setStatus(state, text){
+      // state: "idle" | "work" | "ok" | "err"
+      statusPill.classList.remove("ok","err","work");
+      if (state === "ok") statusPill.classList.add("ok");
+      if (state === "err") statusPill.classList.add("err");
+      if (state === "work") statusPill.classList.add("work");
+      statusText.textContent = text;
+    }
+
+    function enableActions(enabled){
+      parseBtn.disabled = !enabled;
+    }
+
+    function resetUI(){
+      selectedFile = null;
+      fileInput.value = "";
+      fileNameEl.textContent = "Click to choose a PDF or drag & drop";
+      fileHintEl.textContent = "Accepts .pdf";
+
+      roundEl.textContent = "—";
+      countEl.textContent = "—";
+      playersOut.innerHTML = '<li style="opacity:0.5;">No players found yet</li>';
+
+      parsedPlayers = [];
+      parsedRound = null;
+      excelSection.style.display = "none";
+      resetExcelUI();
+
+      enableActions(false);
+      clearPdfBtn.disabled = true;
+      setStatus("idle","No file selected");
+    }
+
+    function resetExcelUI(){
+      selectedExcelFile = null;
+      updatedWorkbook = null;
+      excelFileInput.value = "";
+      excelFileNameEl.textContent = "Click to choose an Excel file or drag & drop";
+      excelFileHintEl.textContent = "Accepts .xlsx or .xls";
+      playersUpdatedEl.textContent = "—";
+      roundColumnEl.textContent = "—";
+      updateExcelBtn.disabled = true;
+      downloadExcelBtn.disabled = true;
+      clearExcelBtn.disabled = true;
+      document.getElementById('excelResults').style.display = 'none';
+      document.getElementById('matchResults').innerHTML = '';
+    }
+
+    function isPdf(file){
+      if (!file) return false;
+      // Some browsers don't set type reliably; use both checks
+      const nameOk = (file.name || "").toLowerCase().endsWith(".pdf");
+      const typeOk = (file.type || "").toLowerCase() === "application/pdf";
+      return nameOk || typeOk;
+    }
+
+    function isExcel(file){
+      if (!file) return false;
+      const name = (file.name || "").toLowerCase();
+      return name.endsWith(".xlsx") || name.endsWith(".xls");
+    }
+
+    function setExcelFile(file){
+      if (!file){
+        resetExcelUI();
+        return;
+      }
+      if (!isExcel(file)){
+        alert("Please select a valid Excel file (.xlsx or .xls)");
+        excelFileNameEl.textContent = file.name || "Unknown file";
+        excelFileHintEl.textContent = "Please choose a .xlsx or .xls file";
+        return;
+      }
+
+      selectedExcelFile = file;
+      excelFileNameEl.textContent = file.name;
+      excelFileHintEl.textContent = `${Math.round(file.size/1024)} KB`;
+      updateExcelBtn.disabled = false;
+      clearExcelBtn.disabled = false;
+    }
+
+    function setFile(file){
+      if (!file){
+        resetUI();
+        return;
+      }
+      if (!isPdf(file)){
+        setStatus("err","That file is not a PDF");
+        enableActions(false);
+        fileNameEl.textContent = file.name || "Unknown file";
+        fileHintEl.textContent = "Please choose a .pdf file";
+        return;
+      }
+
+      selectedFile = file;
+      fileNameEl.textContent = file.name;
+      fileHintEl.textContent = `${Math.round(file.size/1024)} KB`;
+      enableActions(true);
+      clearPdfBtn.disabled = false;
+      setStatus("ok","Ready to parse");
+    }
+
+    // Click/keyboard to open file picker
+    dropZone.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      fileInput.click();
+    });
+    
+    dropZone.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        fileInput.click();
+      }
+    });
+
+    // File picker change
+    fileInput.addEventListener("change", (e) => {
+      const file = e.target.files?.[0] || null;
+      setFile(file);
+    });
+
+    // Drag & drop
+    dropZone.addEventListener("dragenter", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.add("dragover");
+    });
+
+    dropZone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.add("dragover");
+    });
+
+    dropZone.addEventListener("dragleave", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.remove("dragover");
+    });
+
+    dropZone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.remove("dragover");
+      
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) {
+        const file = files[0];
+        setFile(file);
+      }
+    });
+
+    clearPdfBtn.addEventListener("click", () => {
+      if (confirm("Clear PDF and all parsed data? This will reset everything.")) {
+        resetUI();
+      }
+    });
+
+    parseBtn.addEventListener("click", async () => {
+      if (!selectedFile){
+        setStatus("err","No file selected");
+        return;
+      }
+
+      try{
+        setStatus("work","Parsing PDF…");
+        parseBtn.disabled = true;
+
+        const arrayBuffer = await selectedFile.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+        let fullText = "";
+        for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++){
+          const page = await pdf.getPage(pageNo);
+          const tc = await page.getTextContent();
+          // Join with spaces to reduce fragmentation issues
+          const pageText = tc.items.map(it => it.str).join(" ");
+          fullText += "\n" + pageText;
+        }
+
+        const normalized = fullText
+          .replace(/\u00A0/g, " ")
+          .replace(/[ \t]+/g, " ")
+          .trim();
+
+        // Round extraction: "4 ROUND" or "ROUND 4"
+        let roundMatch = normalized.match(/\b([0-9]{1,2})\s+ROUND\b/i);
+        if (!roundMatch) {
+          roundMatch = normalized.match(/\bROUND\b\s*([0-9]{1,2})/i);
+        }
+        const round = roundMatch ? roundMatch[1] : null;
+
+
+        // Build team name for PDF search
+        const teamName = selectedTeam + ' Senior ' + (selectedGender === 'female' ? 'Women' : 'Men');
+        // Escape regex special chars in team name
+        function escapeRegExp(str) {
+          return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+        const teamNameRegex = new RegExp(`TEAM\\s+([AB]):\\s*${escapeRegExp(selectedTeam)}\\s*Senior\\s*${selectedGender === 'female' ? 'Women' : 'Men'}`, 'i');
+        const teamMatch = normalized.match(teamNameRegex);
+        if (!teamMatch){
+          throw new Error(`Could not find 'TEAM A/B: ${teamName}'. Open Debug to confirm text output.`);
+        }
+
+        const teamLetter = teamMatch[1];
+        const startIdx = teamMatch.index;
+        const afterStart = normalized.slice(startIdx);
+        // Find the end of the player list (before COACH or PP GOALS BEHINDS)
+        const endIdx = afterStart.search(/\b(COACH:|PP\s+GOALS\s+BEHINDS)\b/i);
+        const teamBlock = endIdx !== -1 ? afterStart.slice(0, endIdx) : afterStart;
+
+        console.log("=== TEAM BLOCK (first 1500 chars) ===");
+        console.log(teamBlock.slice(0, 1500));
+        console.log("=== END TEAM BLOCK ===");
+
+        // Extract player entries
+        // Pattern in PDF: "1 Chris P. Bacon (vc) 1 2 Max Skelly 2 3..."
+        // Each entry is: RowNumber FirstName [MiddleName(s)/Initial(s)] LastName [optional (role)] PlayerNumber
+        // Middle names/initials can be: Paul, P., P Q., etc.
+        const playerRegex = /\b(\d+)\s+([A-Z][a-z]+(?:\s+(?:[A-Z][a-z]+|[A-Z]\.|[A-Z]))*)\s+([A-Z][a-z]+(?:['.-][A-Z][a-z]+)*)(?:\s+\(([^)]+)\))?\s+\d+/gi;
+
+        const players = [];
+        const seen = new Set();
+        let m;
+        let matchCount = 0;
+        while ((m = playerRegex.exec(teamBlock)) !== null){
+          matchCount++;
+          const rowNum = m[1].trim();
+          const nameParts = m[2].trim().split(/\s+/);
+          const firstName = nameParts[0];
+          const middleNames = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+          const lastName = m[3].trim();
+          const role = m[4] ? `(${m[4].trim()})` : "";
+
+          // Combine for display: FirstName [MiddleNames/Initials] LastName
+          const displayName = middleNames ? `${firstName} ${middleNames} ${lastName}` : `${firstName} ${lastName}`;
+
+          console.log(`Match ${matchCount}: [${rowNum}] [${displayName}] [${role}]`);
+
+          // Skip header words and invalid entries
+          if (/^(NO|PLAYERS|PLAYER|SIGNATURES|PP|GOALS|BEHINDS|BEST|YEL|CARD|RED|TEAM|TIME|pm|am)$/i.test(firstName) ||
+              /^(NO|PLAYERS|PLAYER|SIGNATURES|PP|GOALS|BEHINDS|BEST|YEL|CARD|RED|TEAM|TIME|pm|am)$/i.test(lastName)) {
+            console.log(`  -> Skipped (header word or invalid)`);
+            continue;
+          }
+
+          // Skip entries where row number is not valid (like "00")
+          if (rowNum === "00" || parseInt(rowNum) === 0) {
+            console.log(`  -> Skipped (invalid row number)`);
+            continue;
+          }
+
+          // Skip emergency players (emg)
+          if (role.toLowerCase().includes('emg')) {
+            console.log(`  -> Skipped (emergency player)`);
+            continue;
+          }
+
+          if (!seen.has(displayName)){
+            seen.add(displayName);
+            players.push(displayName);
+            console.log(`  -> Added: ${displayName}`);
+          } else {
+            console.log(`  -> Skipped (duplicate)`);
+          }
+        }
+        console.log(`Total matches found: ${matchCount}, Players added: ${players.length}`);
+
+        roundEl.textContent = round ?? "(not found)";
+        countEl.textContent = String(players.length);
+        
+        // Display players as a formatted list
+        if (players.length > 0) {
+          playersOut.innerHTML = players.map(name => `<li>${name}</li>`).join('');
+        } else {
+          playersOut.innerHTML = '<li style="opacity:0.5;">No players found</li>';
+        }
+
+        // Store parsed data for Excel update
+        parsedPlayers = players;
+        parsedRound = round;
+
+        // Show Excel section if we have valid data
+        if (players.length > 0 && round) {
+          excelSection.style.display = "block";
+        }
+
+        setStatus("ok","Parsed successfully");
+      } catch (err){
+        setStatus("err", err?.message || String(err));
+      } finally{
+        // Re-enable parse button only if a file is still selected
+        parseBtn.disabled = !selectedFile;
+      }
+    });
+
+    // ========== EXCEL HANDLERS ==========
+
+    // Excel dropzone click
+    excelDropZone.addEventListener("click", () => {
+      excelFileInput.click();
+    });
+
+    excelDropZone.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        excelFileInput.click();
+      }
+    });
+
+    // Excel file picker change
+    excelFileInput.addEventListener("change", (e) => {
+      const file = e.target.files?.[0] || null;
+      setExcelFile(file);
+    });
+
+    // Excel drag & drop
+    excelDropZone.addEventListener("dragenter", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      excelDropZone.classList.add("dragover");
+    });
+
+    excelDropZone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      excelDropZone.classList.add("dragover");
+    });
+
+    excelDropZone.addEventListener("dragleave", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      excelDropZone.classList.remove("dragover");
+    });
+
+    excelDropZone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      excelDropZone.classList.remove("dragover");
+      
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) {
+        const file = files[0];
+        setExcelFile(file);
+      }
+    });
+
+    // Update Excel button
+    updateExcelBtn.addEventListener("click", async () => {
+      if (!selectedExcelFile || !parsedPlayers.length || !parsedRound) {
+        alert("Missing required data");
+        return;
+      }
+
+      try {
+        updateExcelBtn.disabled = true;
+        
+        console.log("=== EXCEL UPDATE STARTED ===");
+        console.log(`Parsed Players (${parsedPlayers.length}):`, parsedPlayers);
+        console.log(`Parsed Round: ${parsedRound}`);
+        
+        // Read Excel file with ExcelJS (preserves everything)
+        const arrayBuffer = await selectedExcelFile.arrayBuffer();
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(arrayBuffer);
+        
+        // Get the "Men Rnd-by-Rnd" sheet
+        const sheetName = "Men Rnd-by-Rnd";
+        const availableSheets = workbook.worksheets.map(ws => ws.name);
+        console.log(`Available sheets:`, availableSheets);
+        console.log(`Looking for sheet: "${sheetName}"`);
+        
+        const worksheet = workbook.getWorksheet(sheetName);
+        
+        if (!worksheet) {
+          throw new Error(`Could not find sheet "${sheetName}". Available sheets: ${availableSheets.join(', ')}`);
+        }
+        
+        console.log(`Total rows in Excel: ${worksheet.rowCount}`);
+        
+        if (worksheet.rowCount < 4) {
+          throw new Error("Excel file doesn't have enough rows");
+        }
+
+        // Find the round column (row 3)
+        const headerRow = worksheet.getRow(3);
+        let headerValues = [];
+        headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          headerValues[colNumber - 1] = cell.value ? String(cell.value).trim() : '';
+        });
+        console.log("Row 3 (Round headers):", headerValues);
+        
+        // Find column index for the target round
+        let roundColIndex = -1;
+        const targetRoundText = `Rnd ${parsedRound}`;
+        console.log(`Searching for: "${targetRoundText}"`);
+        
+        for (let i = 0; i < headerValues.length; i++) {
+          if (headerValues[i] === targetRoundText) {
+            roundColIndex = i + 1; // ExcelJS uses 1-based indexing
+            console.log(`Found "${targetRoundText}" at column ${roundColIndex}`);
+            break;
+          }
+        }
+
+        if (roundColIndex === -1) {
+          console.log("Available round headers:", headerValues.filter(h => String(h).includes('Rnd')));
+          throw new Error(`Could not find "${targetRoundText}" in Excel header row`);
+        }
+
+        // Convert to letter for display
+        const roundColLetter = getColumnLetter(roundColIndex);
+        console.log(`Round column: ${roundColLetter} (index ${roundColIndex})`);
+        roundColumnEl.textContent = roundColLetter;
+
+        // Update player attendance
+        let updateCount = 0;
+        let matchResultsHTML = [];
+        const notFoundPlayers = [];
+        
+        console.log("\n=== MATCHING PLAYERS ===");
+        
+        // Track which parsed players were found
+        const foundPlayers = new Set();
+        
+        // Column C (3) = First Name, Column D (4) = Last Name
+        worksheet.eachRow((row, rowNumber) => {
+          if (rowNumber <= 3) return; // Skip header rows
+          
+          const firstNameCell = row.getCell(3); // Column C
+          const lastNameCell = row.getCell(4);  // Column D
+          
+          const firstName = firstNameCell.value ? String(firstNameCell.value).trim() : '';
+          const lastName = lastNameCell.value ? String(lastNameCell.value).trim() : '';
+          
+          if (!firstName || !lastName) return;
+          
+          const fullName = `${firstName} ${lastName}`;
+          
+          // Check if this player is in our parsed players list
+          if (parsedPlayers.includes(fullName)) {
+            // Set value 1 in the round column - ExcelJS preserves all formatting
+            const targetCell = row.getCell(roundColIndex);
+            targetCell.value = 1;
+            
+            updateCount++;
+            foundPlayers.add(fullName);
+            matchResultsHTML.push(`<div class="match-result">✓ ${fullName} (Row ${rowNumber})</div>`);
+            console.log(`Row ${rowNumber}: ${fullName} - UPDATED (set to 1)`);
+          } else {
+            // Log first few non-matches for debugging
+            if (updateCount + (rowNumber - 4) < 30) {
+              console.log(`Row ${rowNumber}: ${fullName} - not in PDF list`);
+            }
+          }
+        });
+        
+        // Check for players from PDF that weren't found in Excel
+        parsedPlayers.forEach(player => {
+          if (!foundPlayers.has(player)) {
+            matchResultsHTML.push(`<div class="match-result not-found">✗ ${player} (not found in Excel)</div>`);
+          }
+        });
+        
+        console.log(`\nTotal players updated: ${updateCount}`);
+        
+        // Display results
+        const matchResultsEl = document.getElementById('matchResults');
+        matchResultsEl.innerHTML = matchResultsHTML.join('');
+        document.getElementById('excelResults').style.display = 'block';
+
+        // Store the updated workbook
+        updatedWorkbook = workbook;
+
+        playersUpdatedEl.textContent = updateCount;
+        downloadExcelBtn.disabled = false;
+        
+        console.log("=== EXCEL UPDATE COMPLETED ===\n");
+        alert(`Successfully updated ${updateCount} player(s) in ${targetRoundText}!`);
+        
+      } catch (err) {
+        alert(`Error updating Excel: ${err.message}`);
+        console.error(err);
+      } finally {
+        updateExcelBtn.disabled = false;
+      }
+    });
+
+    // Helper function to convert column number to letter
+    function getColumnLetter(col) {
+      let letter = '';
+      while (col > 0) {
+        const remainder = (col - 1) % 26;
+        letter = String.fromCharCode(65 + remainder) + letter;
+        col = Math.floor((col - 1) / 26);
+      }
+      return letter;
+    }
+
+    // Clear Excel button
+    clearExcelBtn.addEventListener("click", () => {
+      if (confirm("Clear Excel file and results?")) {
+        resetExcelUI();
+      }
+    });
+
+    // Download Excel button
+    downloadExcelBtn.addEventListener("click", async () => {
+      if (!updatedWorkbook) {
+        alert("No updated Excel file available");
+        return;
+      }
+
+      try {
+        // Generate Excel file with ExcelJS - preserves ALL formatting, formulas, styles
+        const buffer = await updatedWorkbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        
+        // Create download link
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `updated_${selectedExcelFile.name}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+      } catch (err) {
+        alert(`Error downloading Excel: ${err.message}`);
+        console.error(err);
+      }
+    });
+
+    // Init
+    resetUI();
+  </script>
+</body>
+</html>
