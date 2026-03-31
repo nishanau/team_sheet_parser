@@ -105,6 +105,16 @@ export default function BestAndFairestPage() {
       return;
     }
 
+    // Duplicate player number check
+    const enteredNumbers = players.map((p) => p.number.trim()).filter(Boolean);
+    const uniqueNumbers = new Set(enteredNumbers);
+    if (uniqueNumbers.size !== enteredNumbers.length) {
+      const seen = new Set<string>();
+      const dupes = enteredNumbers.filter((n) => seen.size === seen.add(n).size);
+      setError(`Duplicate player number${dupes.length > 1 ? "s" : ""}: ${[...new Set(dupes)].join(", ")}. Each player must have a unique number.`);
+      return;
+    }
+
     setSubmitting(true);
     try {
       const res = await fetch("/api/best-and-fairest", {
