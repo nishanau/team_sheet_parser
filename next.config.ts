@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["192.168.101.191"],
   reactCompiler: true,
   // Turbopack doesn't need explicit fallbacks – Node built-ins are excluded
   // from browser bundles automatically. The empty object silences the

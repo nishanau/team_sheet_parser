@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import styles from "./BestAndFairest.module.css";
 import Select from "../components/Select";
 
@@ -25,116 +25,14 @@ function getTasmanianDate() {
   }).format(new Date());
 }
 
-// ─── Signature Canvas ─────────────────────────────────────────────────────────
-function SignatureCanvas({
-  onChange,
-}: {
-  onChange: (dataUrl: string | null) => void;
-}) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const drawing = useRef(false);
-  const hasDrawn = useRef(false);
-  const lastPos = useRef<{ x: number; y: number } | null>(null);
-
-  const getPos = (e: MouseEvent | TouchEvent, canvas: HTMLCanvasElement) => {
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    if (e instanceof MouseEvent) {
-      return {
-        x: (e.clientX - rect.left) * scaleX,
-        y: (e.clientY - rect.top) * scaleY,
-      };
-    }
-    const touch = (e as TouchEvent).touches[0];
-    return {
-      x: (touch.clientX - rect.left) * scaleX,
-      y: (touch.clientY - rect.top) * scaleY,
-    };
-  };
-
-  const startDraw = useCallback((e: MouseEvent | TouchEvent) => {
-    e.preventDefault();
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    drawing.current = true;
-    lastPos.current = getPos(e, canvas);
-  }, []);
-
-  const draw = useCallback(
-    (e: MouseEvent | TouchEvent) => {
-      e.preventDefault();
-      if (!drawing.current) return;
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext("2d")!;
-      const pos = getPos(e, canvas);
-      ctx.beginPath();
-      ctx.moveTo(lastPos.current!.x, lastPos.current!.y);
-      ctx.lineTo(pos.x, pos.y);
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 2;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.stroke();
-      lastPos.current = pos;
-      hasDrawn.current = true;
-    },
-    []
-  );
-
-  const endDraw = useCallback(() => {
-    drawing.current = false;
-    lastPos.current = null;
-    if (hasDrawn.current && canvasRef.current) {
-      onChange(canvasRef.current.toDataURL("image/png"));
-    }
-  }, [onChange]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    canvas.addEventListener("mousedown", startDraw);
-    canvas.addEventListener("mousemove", draw);
-    canvas.addEventListener("mouseup", endDraw);
-    canvas.addEventListener("mouseleave", endDraw);
-    canvas.addEventListener("touchstart", startDraw, { passive: false });
-    canvas.addEventListener("touchmove", draw, { passive: false });
-    canvas.addEventListener("touchend", endDraw);
-    return () => {
-      canvas.removeEventListener("mousedown", startDraw);
-      canvas.removeEventListener("mousemove", draw);
-      canvas.removeEventListener("mouseup", endDraw);
-      canvas.removeEventListener("mouseleave", endDraw);
-      canvas.removeEventListener("touchstart", startDraw);
-      canvas.removeEventListener("touchmove", draw);
-      canvas.removeEventListener("touchend", endDraw);
-    };
-  }, [startDraw, draw, endDraw]);
-
-  function clear() {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    hasDrawn.current = false;
-    onChange(null);
-  }
-
-  return (
-    <div className={styles.sigWrap}>
-      <canvas
-        ref={canvasRef}
-        width={600}
-        height={160}
-        className={styles.sigCanvas}
-      />
-      <button type="button" className={styles.sigClear} onClick={clear}>
-        Clear
-      </button>
-    </div>
-  );
-}
+// Round options: 1–22 plus Finals
+const ROUND_OPTIONS = [
+  ...Array.from({ length: 22 }, (_, i) => `Round ${i + 1}`),
+  "Finals Week 1",
+  "Finals Week 2",
+  "Finals Week 3",
+  "Grand Final",
+];
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function BestAndFairestPage() {
@@ -143,12 +41,13 @@ export default function BestAndFairestPage() {
   const [matchDate, setMatchDate]               = useState(getTasmanianDate);
   const [ageGroup, setAgeGroup]                 = useState("");
   const [opposition, setOpposition]             = useState("");
+  const [round, setRound]                       = useState(ROUND_OPTIONS[0]);
   const [players, setPlayers]                   = useState(
     Array.from({ length: 5 }, () => ({ number: "", name: "" }))
   );
-  const [submitterName, setSubmitterName]       = useState("");
-  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
-  const [submitting, setSubmitting]             = useState(false);
+  const [submitterName, setSubmitterName] = useState("");
+  const [initials, setInitials]           = useState("");
+  const [submitting, setSubmitting]       = useState(false);
   const [submitted, setSubmitted]               = useState(false);
   const [error, setError]                       = useState<string | null>(null);
 
@@ -190,6 +89,7 @@ export default function BestAndFairestPage() {
     setCompetition(name);
     setAgeGroup(league?.ageGroups[0] ?? "");
     setOpposition(league?.teams[0] ?? "");
+    // round stays as-is when competition changes
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -198,6 +98,10 @@ export default function BestAndFairestPage() {
 
     if (!submitterName.trim()) {
       setError("Please enter your name before submitting.");
+      return;
+    }
+    if (!initials.trim()) {
+      setError("Please enter your initials before submitting.");
       return;
     }
 
@@ -211,6 +115,7 @@ export default function BestAndFairestPage() {
           matchDate,
           ageGroup,
           opposition,
+          round,
           player1Number: players[0].number || null,
           player1Name:   players[0].name   || null,
           player2Number: players[1].number || null,
@@ -222,7 +127,7 @@ export default function BestAndFairestPage() {
           player5Number: players[4].number || null,
           player5Name:   players[4].name   || null,
           submitterName: submitterName.trim(),
-          signatureDataUrl,
+          signatureDataUrl: initials.trim(),
         }),
       });
 
@@ -242,9 +147,10 @@ export default function BestAndFairestPage() {
     setCompetition(first?.name ?? "");
     setAgeGroup(first?.ageGroups[0] ?? "");
     setOpposition(first?.teams[0] ?? "");
+    setRound(ROUND_OPTIONS[0]);
     setPlayers(Array.from({ length: 5 }, () => ({ number: "", name: "" })));
     setSubmitterName("");
-    setSignatureDataUrl(null);
+    setInitials("");
     setSubmitted(false);
     setError(null);
   }
@@ -358,6 +264,17 @@ export default function BestAndFairestPage() {
                 />
               </div>
 
+              <div className={styles.fieldGroup}>
+                <label className={styles.label} htmlFor="round">Round</label>
+                <Select
+                  id="round"
+                  value={round}
+                  onChange={setRound}
+                  options={ROUND_OPTIONS}
+                  required
+                />
+              </div>
+
             </div>
           </section>
 
@@ -391,6 +308,7 @@ export default function BestAndFairestPage() {
                           value={p.number}
                           onChange={(e) => updatePlayer(i, "number", e.target.value)}
                           maxLength={4}
+                          required
                         />
                       </td>
                       <td className={styles.td}>
@@ -400,6 +318,7 @@ export default function BestAndFairestPage() {
                           placeholder="Player name"
                           value={p.name}
                           onChange={(e) => updatePlayer(i, "name", e.target.value)}
+                          required
                         />
                       </td>
                     </tr>
@@ -428,12 +347,18 @@ export default function BestAndFairestPage() {
               />
             </div>
 
-            <div className={styles.fieldGroup}>
-              <label className={styles.label}>Signature</label>
-              <p className={styles.sectionHint} style={{ marginBottom: 8 }}>
-                Sign in the box below using your mouse or finger.
-              </p>
-              <SignatureCanvas onChange={setSignatureDataUrl} />
+            <div className={styles.fieldGroup} style={{ maxWidth: 200 }}>
+              <label className={styles.label} htmlFor="initials">Initials</label>
+              <input
+                id="initials"
+                type="text"
+                className={`${styles.input} ${styles.initialsInput}`}
+                placeholder="e.g. JD"
+                value={initials}
+                onChange={(e) => setInitials(e.target.value.toUpperCase())}
+                maxLength={5}
+                required
+              />
             </div>
           </section>
 

@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     const {
-      competition, matchDate, ageGroup, opposition,
+      competition, matchDate, ageGroup, opposition, round,
       player1Number, player1Name,
       player2Number, player2Name,
       player3Number, player3Name,
@@ -19,9 +19,9 @@ export async function POST(req: NextRequest) {
       submitterName, signatureDataUrl,
     } = body;
 
-    if (!competition || !matchDate || !ageGroup || !opposition || !submitterName) {
+    if (!competition || !matchDate || !ageGroup || !opposition || !round || !submitterName) {
       return NextResponse.json(
-        { error: "competition, matchDate, ageGroup, opposition and submitterName are required." },
+        { error: "competition, matchDate, ageGroup, opposition, round and submitterName are required." },
         { status: 400 }
       );
     }
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     const [inserted] = await db
       .insert(bestAndFairest)
       .values({
-        competition, matchDate, ageGroup, opposition,
+        competition, matchDate, ageGroup, opposition, round,
         player1Number, player1Name,
         player2Number, player2Name,
         player3Number, player3Name,

@@ -55,6 +55,7 @@ export const bestAndFairest = sqliteTable("best_and_fairest", {
   matchDate:   text("match_date").notNull(),            // YYYY-MM-DD (Tasmania time)
   ageGroup:    text("age_group").notNull(),
   opposition:  text("opposition").notNull(),
+  round:       text("round").notNull(),                 // e.g. "Round 1"
 
   // 5 vote entries: position 1 = 5 votes … position 5 = 1 vote
   player1Number: text("player1_number"),
@@ -70,7 +71,7 @@ export const bestAndFairest = sqliteTable("best_and_fairest", {
 
   // Submission sign-off
   submitterName:    text("submitter_name").notNull(),
-  signatureDataUrl: text("signature_data_url"),         // base64 PNG from canvas
+  signatureDataUrl: text("signature_data_url"),         // submitter initials text
 
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
