@@ -794,7 +794,7 @@
         const teamNameRegex = new RegExp(`TEAM\\s+([AB]):\\s*${escapeRegExp(selectedTeam)}\\s*Senior\\s*${selectedGender === 'female' ? 'Women' : 'Men'}`, 'i');
         const teamMatch = normalized.match(teamNameRegex);
         if (!teamMatch){
-          throw new Error(`Could not find 'TEAM A/B: ${teamName}'. Open Debug to confirm text output.`);
+          throw new Error(`Could not find 'TEAM : ${teamName}'`);
         }
 
         const teamLetter = teamMatch[1];
