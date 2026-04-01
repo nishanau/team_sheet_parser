@@ -35,7 +35,7 @@ export async function GET() {
     });
 
     return NextResponse.json(result, {
-      headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400" },
+      headers: { "Cache-Control": "private, max-age=300" },
     });
   } catch (err) {
     console.error("[leagues GET]", err);

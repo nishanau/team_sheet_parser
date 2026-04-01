@@ -10,6 +10,7 @@
     "postinstall": "cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs",
     "db:generate": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate",
+    "db:migrate:local": "node node_modules/drizzle-kit/bin.cjs migrate",
     "db:check": "node --env-file=.env.local scripts/check-migrations.mjs"
   },
   "dependencies": {

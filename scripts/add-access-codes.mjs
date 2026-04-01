@@ -12,56 +12,38 @@
 import { createClient } from "@libsql/client";
 import Database from "better-sqlite3";
 import { resolve } from "path";
-import { randomBytes } from "crypto";
 
 const TURSO_URL   = "libsql://football-app-nishanau83.aws-ap-south-1.turso.io";
 const TURSO_TOKEN = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3NzQ5MjEwMDksImlkIjoiMDE5ZDQxODgtMTEwMS03ODQwLWFlNjUtOTZjM2VhZmRlOWZjIiwicmlkIjoiY2Y0MGFiMzktNWRmNy00NWEzLWJlNjYtYWQzOTFmZjIzYjBiIn0.kPHXMwCGFIyomemX2NoWAjXrF5dYkkptjvARNN4zPCkxPTI05dZiQRoe2bMrgykL0mzK0x-HfmpdZfIhn7cVBw";
 
-const CREATE_TABLE = `
-CREATE TABLE IF NOT EXISTS team_access_codes (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  team_name  TEXT    NOT NULL,
-  grade_name TEXT    NOT NULL,
-  code       TEXT    NOT NULL UNIQUE,
-  active     INTEGER NOT NULL DEFAULT 1
-);`;
 
 const TEAMS = [
   // SFL Community League Senior Men
-  { teamName: "Claremont Senior Men",      gradeName: "SFL Community League Senior Men" },
-  { teamName: "Cygnet Senior Men",         gradeName: "SFL Community League Senior Men" },
-  { teamName: "Dodges Ferry Senior Men",   gradeName: "SFL Community League Senior Men" },
-  { teamName: "Hobart Senior Men",         gradeName: "SFL Community League Senior Men" },
-  { teamName: "Huonville Lions Senior Men",gradeName: "SFL Community League Senior Men" },
-  { teamName: "Lindisfarne Senior Men",    gradeName: "SFL Community League Senior Men" },
-  { teamName: "New Norfolk Senior Men",    gradeName: "SFL Community League Senior Men" },
-  { teamName: "Sorell Senior Men",         gradeName: "SFL Community League Senior Men" },
+  { teamName: "Claremont Senior Men",       gradeName: "SFL Community League Senior Men",   code: "QTE9-C96R" },
+  { teamName: "Cygnet Senior Men",          gradeName: "SFL Community League Senior Men",   code: "P8C5-4PRM" },
+  { teamName: "Dodges Ferry Senior Men",    gradeName: "SFL Community League Senior Men",   code: "MB2L-S4PL" },
+  { teamName: "Hobart Senior Men",          gradeName: "SFL Community League Senior Men",   code: "QWFT-GMNT" },
+  { teamName: "Huonville Lions Senior Men", gradeName: "SFL Community League Senior Men",   code: "26GW-73NN" },
+  { teamName: "Lindisfarne Senior Men",     gradeName: "SFL Community League Senior Men",   code: "AE8E-YBJ6" },
+  { teamName: "New Norfolk Senior Men",     gradeName: "SFL Community League Senior Men",   code: "LBLD-UL7W" },
+  { teamName: "Sorell Senior Men",          gradeName: "SFL Community League Senior Men",   code: "HT4C-ZGCL" },
   // SFL Community League Senior Women
-  { teamName: "Claremont Senior Women",      gradeName: "SFL Community League Senior Women" },
-  { teamName: "Dodges Ferry Senior Women",   gradeName: "SFL Community League Senior Women" },
-  { teamName: "Hobart Senior Women",         gradeName: "SFL Community League Senior Women" },
-  { teamName: "Huonville Lions Senior Women",gradeName: "SFL Community League Senior Women" },
-  { teamName: "Hutchins Senior Women",       gradeName: "SFL Community League Senior Women" },
-  { teamName: "Lindisfarne Senior Women",    gradeName: "SFL Community League Senior Women" },
-  { teamName: "New Norfolk Senior Women",    gradeName: "SFL Community League Senior Women" },
-  { teamName: "Port Senior Women",           gradeName: "SFL Community League Senior Women" },
-  { teamName: "Sorell Senior Women",         gradeName: "SFL Community League Senior Women" },
-  { teamName: "University Senior Women",     gradeName: "SFL Community League Senior Women" },
+  { teamName: "Claremont Senior Women",       gradeName: "SFL Community League Senior Women", code: "74GP-F2HM" },
+  { teamName: "Dodges Ferry Senior Women",    gradeName: "SFL Community League Senior Women", code: "92UP-G8JB" },
+  { teamName: "Hobart Senior Women",          gradeName: "SFL Community League Senior Women", code: "6MGW-CQ57" },
+  { teamName: "Huonville Lions Senior Women", gradeName: "SFL Community League Senior Women", code: "3HW3-8XZD" },
+  { teamName: "Hutchins Senior Women",        gradeName: "SFL Community League Senior Women", code: "S7CM-KEML" },
+  { teamName: "Lindisfarne Senior Women",     gradeName: "SFL Community League Senior Women", code: "H6LS-B4QP" },
+  { teamName: "New Norfolk Senior Women",     gradeName: "SFL Community League Senior Women", code: "CUQM-FR9X" },
+  { teamName: "Port Senior Women",            gradeName: "SFL Community League Senior Women", code: "3CSX-6MRQ" },
+  { teamName: "Sorell Senior Women",          gradeName: "SFL Community League Senior Women", code: "YDNH-DKQ6" },
+  { teamName: "University Senior Women",      gradeName: "SFL Community League Senior Women", code: "R7E2-J8HU" },
 ];
 
-// Generate a human-friendly 8-char uppercase code e.g. "A3BX-7K2M"
-function genCode() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
-  let s = "";
-  const buf = randomBytes(8);
-  for (let i = 0; i < 8; i++) s += chars[buf[i] % chars.length];
-  return s.slice(0, 4) + "-" + s.slice(4);
-}
 
 // ── Local sync ────────────────────────────────────────────────────────────────
 function syncLocal() {
   const db = new Database(resolve("db/local.db"));
-  db.exec(CREATE_TABLE);
 
   const insert = db.prepare(
     "INSERT OR IGNORE INTO team_access_codes (team_name, grade_name, code) VALUES (?, ?, ?)"
@@ -75,9 +57,8 @@ function syncLocal() {
     for (const t of TEAMS) {
       const key = `${t.teamName}::${t.gradeName}`;
       if (!existing.has(key)) {
-        const code = genCode();
-        insert.run(t.teamName, t.gradeName, code);
-        newCodes.push({ ...t, code });
+        insert.run(t.teamName, t.gradeName, t.code);
+        newCodes.push(t);
       }
     }
   })();
@@ -107,7 +88,6 @@ function syncLocal() {
 // ── Turso sync ────────────────────────────────────────────────────────────────
 async function syncTurso() {
   const client = createClient({ url: TURSO_URL, authToken: TURSO_TOKEN });
-  await client.execute(CREATE_TABLE);
 
   const rows = await client.execute(
     "SELECT team_name || '::' || grade_name AS k FROM team_access_codes"
@@ -118,12 +98,11 @@ async function syncTurso() {
   for (const t of TEAMS) {
     const key = `${t.teamName}::${t.gradeName}`;
     if (!existing.has(key)) {
-      const code = genCode();
       await client.execute({
         sql:  "INSERT OR IGNORE INTO team_access_codes (team_name, grade_name, code) VALUES (?, ?, ?)",
-        args: [t.teamName, t.gradeName, code],
+        args: [t.teamName, t.gradeName, t.code],
       });
-      newCodes.push({ ...t, code });
+      newCodes.push(t);
     }
   }
 
