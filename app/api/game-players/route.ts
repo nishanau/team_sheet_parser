@@ -161,36 +161,41 @@ export async function GET(req: NextRequest) {
   });
 
   // 3. Upsert into team_players + record the fetch (fire-and-forget)
+  // One SELECT to load all existing players for the team, then bulk insert/update
+  // instead of N+1 round-trips to Turso.
   (async () => {
     try {
+      const existing = await db.select().from(teamPlayers).where(eq(teamPlayers.teamName, teamName));
+
+      const byProfileId = new Map(existing.filter((e) => e.profileId).map((e) => [e.profileId!, e]));
+      const byName = new Map(existing.filter((e) => !e.profileId).map((e) => [`${e.firstName}|${e.lastName}`, e]));
+
+      const toInsert: (typeof teamPlayers.$inferInsert)[] = [];
+      const toUpdateById: { id: number; set: Partial<typeof teamPlayers.$inferInsert> }[] = [];
+
       for (const p of parsed) {
         if (p.profileId) {
-          const existing = await db
-            .select({ id: teamPlayers.id })
-            .from(teamPlayers)
-            .where(and(eq(teamPlayers.teamName, teamName), eq(teamPlayers.profileId, p.profileId)));
-          if (existing.length > 0) {
-            await db
-              .update(teamPlayers)
-              .set({ playerNumber: p.playerNumber, firstName: p.firstName, lastName: p.lastName, lastSeenGameId: gameId })
-              .where(and(eq(teamPlayers.teamName, teamName), eq(teamPlayers.profileId, p.profileId)));
+          const match = byProfileId.get(p.profileId);
+          if (match) {
+            toUpdateById.push({ id: match.id, set: { playerNumber: p.playerNumber, firstName: p.firstName, lastName: p.lastName, lastSeenGameId: gameId } });
           } else {
-            await db.insert(teamPlayers).values({ teamName, ...p, lastSeenGameId: gameId });
+            toInsert.push({ teamName, ...p, lastSeenGameId: gameId });
           }
         } else {
-          const existing = await db
-            .select({ id: teamPlayers.id })
-            .from(teamPlayers)
-            .where(and(eq(teamPlayers.teamName, teamName), eq(teamPlayers.firstName, p.firstName), eq(teamPlayers.lastName, p.lastName)));
-          if (existing.length > 0) {
-            await db
-              .update(teamPlayers)
-              .set({ playerNumber: p.playerNumber, lastSeenGameId: gameId })
-              .where(and(eq(teamPlayers.teamName, teamName), eq(teamPlayers.firstName, p.firstName), eq(teamPlayers.lastName, p.lastName)));
+          const match = byName.get(`${p.firstName}|${p.lastName}`);
+          if (match) {
+            toUpdateById.push({ id: match.id, set: { playerNumber: p.playerNumber, lastSeenGameId: gameId } });
           } else {
-            await db.insert(teamPlayers).values({ teamName, ...p, lastSeenGameId: gameId });
+            toInsert.push({ teamName, ...p, lastSeenGameId: gameId });
           }
         }
+      }
+
+      if (toInsert.length > 0) {
+        await db.insert(teamPlayers).values(toInsert);
+      }
+      for (const u of toUpdateById) {
+        await db.update(teamPlayers).set(u.set).where(eq(teamPlayers.id, u.id));
       }
 
       await db.insert(gamePlayersFetched).values({

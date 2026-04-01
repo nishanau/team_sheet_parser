@@ -42,24 +42,20 @@ export default function Select({
 
   const selectedLabel = normalised.find((o) => o.value === value)?.label ?? value;
 
-  // Close on outside click
+  // Close on outside click or Escape
   useEffect(() => {
-    function handle(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+    function handleMouse(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
     }
-    document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
-  }, []);
-
-  // Close on Escape
-  useEffect(() => {
-    function handle(e: KeyboardEvent) {
+    function handleKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
-    document.addEventListener("keydown", handle);
-    return () => document.removeEventListener("keydown", handle);
+    document.addEventListener("mousedown", handleMouse);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleMouse);
+      document.removeEventListener("keydown", handleKey);
+    };
   }, []);
 
   function select(val: string) {

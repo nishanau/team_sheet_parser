@@ -1,10 +1,6 @@
 ---
 paths:
-  - "src/api/**"
-  - "src/services/**"
-  - "**/controllers/**"
-  - "**/routes/**"
-  - "**/handlers/**"
+  - "app/api/**"
 ---
 
 # Error Handling

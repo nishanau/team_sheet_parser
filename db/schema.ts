@@ -1,4 +1,4 @@
-import { integer, text, sqliteTable } from "drizzle-orm/sqlite-core";
+import { integer, text, sqliteTable, index } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 
 // ─── Leagues ──────────────────────────────────────────────────────────────────
@@ -41,7 +41,10 @@ export const fixtures = sqliteTable("fixtures", {
   homeTeamName: text("home_team_name").notNull(),
   awayTeamName: text("away_team_name").notNull(),
   venueName:    text("venue_name"),
-});
+}, (t) => [
+  index("fixtures_grade_home_round_idx").on(t.gradeName, t.homeTeamName, t.roundName),
+  index("fixtures_grade_away_idx").on(t.gradeName, t.awayTeamName),
+]);
 
 export type FixtureInsert = typeof fixtures.$inferInsert;
 export type FixtureSelect = typeof fixtures.$inferSelect;
@@ -58,7 +61,11 @@ export const teamPlayers = sqliteTable("team_players", {
   lastName:     text("last_name").notNull(),
   profileId:    text("profile_id"),              // null for fill-ins / anonymous
   lastSeenGameId: text("last_seen_game_id"),      // audit: most recent game this player appeared in
-});
+}, (t) => [
+  index("team_players_team_name_idx").on(t.teamName),
+  index("team_players_team_profile_idx").on(t.teamName, t.profileId),
+  index("team_players_team_firstname_lastname_idx").on(t.teamName, t.firstName, t.lastName),
+]);
 
 export type TeamPlayerInsert = typeof teamPlayers.$inferInsert;
 export type TeamPlayerSelect = typeof teamPlayers.$inferSelect;
@@ -71,7 +78,9 @@ export const gamePlayersFetched = sqliteTable("game_players_fetched", {
   gameId:    text("game_id").notNull(),
   teamName:  text("team_name").notNull(),
   fetchedAt: text("fetched_at").notNull().$defaultFn(() => new Date().toISOString()),
-});
+}, (t) => [
+  index("gpf_game_team_idx").on(t.gameId, t.teamName),
+]);
 
 // ─── Best & Fairest Votes ─────────────────────────────────────────────────────
 export const bestAndFairest = sqliteTable("best_and_fairest", {

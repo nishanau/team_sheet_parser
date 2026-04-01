@@ -34,7 +34,9 @@ export async function GET() {
       return { name: league.name, ageGroups };
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json(result, {
+      headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400" },
+    });
   } catch (err) {
     console.error("[leagues GET]", err);
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });

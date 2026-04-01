@@ -1,17 +1,6 @@
 ---
 paths:
-  - "**/migrations/**"
-  - "**/migrate/**"
-  - "**/db/migrate/**"
-  - "**/alembic/**"
-  - "**/alembic/versions/**"
-  - "**/prisma/migrations/**"
-  - "**/drizzle/**"
-  - "**/knex/migrations/**"
-  - "**/sequelize/migrations/**"
-  - "**/typeorm/migrations/**"
-  - "**/flyway/**"
-  - "**/liquibase/**"
+  - "db/**"
 ---
 
 # Database Migrations

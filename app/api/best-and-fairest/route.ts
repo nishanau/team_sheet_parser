@@ -69,9 +69,8 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Whitelist checks (against DB / known constants) ───────────────────────
-    const allLeagues = await db.select().from(leagues);
-    const knownLeagueNames = new Set(allLeagues.map((l) => l.name));
-    if (!knownLeagueNames.has(competition)) {
+    const [leagueRow] = await db.select().from(leagues).where(eq(leagues.name, competition)).limit(1);
+    if (!leagueRow) {
       return err(`Unknown competition: "${competition}".`);
     }
 
@@ -97,7 +96,6 @@ export async function POST(req: NextRequest) {
     // Team list: SFL teams come from DB (for the specific grade), STJFL hardcoded
     let knownTeamNames: Set<string>;
     if (competition === "SFL" && grade) {
-      const leagueRow   = allLeagues.find((l) => l.name === competition)!;
       const gradeTeams  = await db
         .select()
         .from(teams)

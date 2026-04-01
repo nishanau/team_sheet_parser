@@ -102,6 +102,25 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+async function batchedMap<T, R>(
+  items: T[],
+  batchSize: number,
+  delayMs: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const settled = await Promise.allSettled(batch.map(fn));
+    for (const r of settled) {
+      if (r.status === "fulfilled") results.push(r.value);
+      else console.error("[cron] batch item failed:", r.reason);
+    }
+    if (i + batchSize < items.length) await sleep(delayMs);
+  }
+  return results;
+}
+
 // ─── Main sync ────────────────────────────────────────────────────────────────
 async function runSync(log: string[]): Promise<void> {
   const tursoUrl   = process.env.TURSO_DATABASE_URL;
@@ -151,87 +170,80 @@ async function runSync(log: string[]): Promise<void> {
   log.push(`Grades to sync: ${gradeIds.length}`);
 
   // ── Step 2: For each grade, fetch ladder → get team IDs ───────────────────
+  type LadderData = {
+    discoverGrade: {
+      name: string;
+      ladder: { standings: { team: { id: string; name: string } }[] }[];
+    };
+  };
   const teamIdsByGrade: Record<string, { teamId: string; gradeName: string }[]> = {};
 
-  for (const gradeId of gradeIds) {
-    type LadderData = {
-      discoverGrade: {
-        name: string;
-        ladder: { standings: { team: { id: string; name: string } }[] }[];
-      };
-    };
+  await batchedMap(gradeIds, 5, 300, async (gradeId) => {
     const data = await gql<LadderData>(Q_GRADE_LADDER, { gradeID: gradeId });
-    await sleep(300);
-
     const gradeName = data.discoverGrade?.name ?? "";
     const standings = (data.discoverGrade?.ladder ?? []).flatMap((l) => l.standings ?? []);
-
     teamIdsByGrade[gradeId] = standings
       .filter((s) => s.team?.id)
       .map((s) => ({ teamId: s.team.id, gradeName }));
-
     log.push(`  ${gradeName}: ${standings.length} teams`);
-  }
+  });
 
   // ── Step 3: Collect all teams and games via teamFixture ───────────────────
-  const allTeams  = new Map<string, { name: string; gradeName: string }>();  // teamId → info
-  const allGames  = new Map<string, {
+  type FixtureData = {
+    discoverTeamFixture: {
+      name: string;
+      grade: { id: string; name: string; season: { id: string; name: string; competition: { id: string } } };
+      fixture: {
+        games: {
+          id: string;
+          home: { name?: string };
+          away: { name?: string };
+          status: { value: string };
+          date: string;
+          allocation?: { court?: { name?: string; venue?: { name?: string } } };
+        }[];
+      };
+    }[];
+  };
+
+  const allGames = new Map<string, {
     id: string; gradeName: string; roundName: string; date: string;
     homeTeamName: string; awayTeamName: string; venueName: string | null;
   }>();
 
-  const visitedTeams = new Set<string>();
-
+  // Collect unique team IDs across all grades (preserving gradeName for allTeams)
+  const uniqueTeamIds = new Map<string, string>(); // teamId → gradeName
   for (const entries of Object.values(teamIdsByGrade)) {
     for (const { teamId, gradeName } of entries) {
-      allTeams.set(teamId, { name: "", gradeName }); // name filled below
-
-      if (visitedTeams.has(teamId)) continue;
-      visitedTeams.add(teamId);
-
-      type FixtureData = {
-        discoverTeamFixture: {
-          name: string;
-          grade: { id: string; name: string; season: { id: string; name: string; competition: { id: string } } };
-          fixture: {
-            games: {
-              id: string;
-              home: { name?: string };
-              away: { name?: string };
-              status: { value: string };
-              date: string;
-              allocation?: { court?: { name?: string; venue?: { name?: string } } };
-            }[];
-          };
-        }[];
-      };
-
-      const data = await gql<FixtureData>(Q_TEAM_FIXTURE, { teamID: teamId });
-      await sleep(300);
-
-      for (const round of data.discoverTeamFixture ?? []) {
-        const gn = round.grade?.name ?? "";
-        if (!ALLOWED_GRADES.has(gn)) continue;
-
-        for (const game of round.fixture?.games ?? []) {
-          if (!game.id) continue;
-          const venue =
-            game.allocation?.court?.venue?.name ??
-            game.allocation?.court?.name ??
-            null;
-          allGames.set(game.id, {
-            id: game.id,
-            gradeName: gn,
-            roundName: clean(round.name),
-            date: game.date,
-            homeTeamName: clean(game.home?.name),
-            awayTeamName: clean(game.away?.name),
-            venueName: venue ? clean(venue) : null,
-          });
-        }
-      }
+      if (!uniqueTeamIds.has(teamId)) uniqueTeamIds.set(teamId, gradeName);
     }
   }
+
+  await batchedMap([...uniqueTeamIds.entries()], 5, 300, async ([teamId]) => {
+    const data = await gql<FixtureData>(Q_TEAM_FIXTURE, { teamID: teamId });
+
+    for (const round of data.discoverTeamFixture ?? []) {
+      const gn = round.grade?.name ?? "";
+      if (!ALLOWED_GRADES.has(gn)) continue;
+
+      for (const game of round.fixture?.games ?? []) {
+        if (!game.id) continue;
+        const venue =
+          game.allocation?.court?.venue?.name ??
+          game.allocation?.court?.name ??
+          null;
+        allGames.set(game.id, {
+          id: game.id,
+          gradeName: gn,
+          roundName: clean(round.name),
+          date: game.date,
+          homeTeamName: clean(game.home?.name),
+          awayTeamName: clean(game.away?.name),
+          venueName: venue ? clean(venue) : null,
+        });
+      }
+    }
+  });
 
   log.push(`Total unique games collected: ${allGames.size}`);
 
