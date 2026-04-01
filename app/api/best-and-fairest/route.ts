@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { bestAndFairest, leagues, teams } from "@/db/schema";
 import { and, eq, desc, sql } from "drizzle-orm";
+import { ROUND_OPTIONS as ROUND_OPTIONS_ARR, AGE_GROUPS, GRADE_MAP, STJFL_TEAMS } from "@/lib/constants";
 
 const DAILY_LIMIT = 3;
 
@@ -10,16 +11,7 @@ const DATE_RE     = /^\d{4}-\d{2}-\d{2}$/;
 const NUMBER_RE   = /^\d{1,4}$/;
 const INITIALS_RE = /^[A-Za-z]{1,5}$/;
 
-const ROUND_OPTIONS = new Set([
-  ...Array.from({ length: 22 }, (_, i) => `Round ${i + 1}`),
-  "Finals Week 1", "Finals Week 2", "Finals Week 3", "Grand Final",
-]);
-
-// Age groups mirror the constants in /api/leagues
-const AGE_GROUPS: Record<string, string[]> = {
-  SFL:   ["Senior Men", "Reserves Men", "U18 Men", "Senior Women"],
-  STJFL: ["U13", "U14", "U15", "U16"],
-};
+const ROUND_OPTIONS = new Set(ROUND_OPTIONS_ARR);
 
 function str(v: unknown, max: number): string | null {
   if (typeof v !== "string") return null;
@@ -47,6 +39,8 @@ export async function POST(req: NextRequest) {
     const competition   = str(b.competition,   50);
     const matchDate     = str(b.matchDate,      10);
     const ageGroup      = str(b.ageGroup,       50);
+    const grade         = str(b.grade,         200);   // nullable for STJFL
+    const homeTeam      = str(b.homeTeam,      100);
     const opposition    = str(b.opposition,    100);
     const round         = str(b.round,          30);
     const submitterName = str(b.submitterName, 100);
@@ -55,6 +49,7 @@ export async function POST(req: NextRequest) {
     if (!competition)   return err("competition is required (max 50 chars).");
     if (!matchDate)     return err("matchDate is required (max 10 chars).");
     if (!ageGroup)      return err("ageGroup is required (max 50 chars).");
+    if (!homeTeam)      return err("homeTeam is required (max 100 chars).");
     if (!opposition)    return err("opposition is required (max 100 chars).");
     if (!round)         return err("round is required (max 30 chars).");
     if (!submitterName) return err("submitterName is required (max 100 chars).");
@@ -85,15 +80,41 @@ export async function POST(req: NextRequest) {
       return err(`Unknown age group "${ageGroup}" for competition "${competition}".`);
     }
 
+    // Grade: required for SFL (must match GRADE_MAP entry), optional/null for STJFL
+    const gradeKey     = `${competition}::${ageGroup}`;
+    const allowedGrades = GRADE_MAP[gradeKey] ?? [];
+    if (competition === "SFL") {
+      if (!grade) return err("grade is required for SFL competitions.");
+      if (!allowedGrades.includes(grade)) {
+        return err(`Unknown grade "${grade}" for ${competition} ${ageGroup}.`);
+      }
+    }
+
     if (!ROUND_OPTIONS.has(round)) {
       return err(`Unknown round: "${round}".`);
     }
 
-    const leagueRow = allLeagues.find((l) => l.name === competition)!;
-    const allTeams  = await db.select().from(teams).where(eq(teams.leagueId, leagueRow.id));
-    const knownTeamNames = new Set(allTeams.map((t) => t.name));
+    // Team list: SFL teams come from DB (for the specific grade), STJFL hardcoded
+    let knownTeamNames: Set<string>;
+    if (competition === "SFL" && grade) {
+      const leagueRow   = allLeagues.find((l) => l.name === competition)!;
+      const gradeTeams  = await db
+        .select()
+        .from(teams)
+        .where(and(eq(teams.leagueId, leagueRow.id), eq(teams.gradeName, grade)));
+      knownTeamNames = new Set(gradeTeams.map((t) => t.name));
+    } else {
+      knownTeamNames = new Set(STJFL_TEAMS);
+    }
+
+    if (!knownTeamNames.has(homeTeam)) {
+      return err(`Unknown home team: "${homeTeam}".`);
+    }
     if (!knownTeamNames.has(opposition)) {
       return err(`Unknown opposition team: "${opposition}".`);
+    }
+    if (homeTeam === opposition) {
+      return err("Home team and opposition cannot be the same.");
     }
 
     // ── Player rows ───────────────────────────────────────────────────────────
@@ -144,7 +165,10 @@ export async function POST(req: NextRequest) {
     const [inserted] = await db
       .insert(bestAndFairest)
       .values({
-        competition, matchDate, ageGroup, opposition, round,
+        competition, matchDate, ageGroup,
+        grade:    grade ?? null,
+        homeTeam: homeTeam,
+        opposition, round,
         player1Number: p1.num,  player1Name: p1.name,
         player2Number: p2.num,  player2Name: p2.name,
         player3Number: p3.num,  player3Name: p3.name,

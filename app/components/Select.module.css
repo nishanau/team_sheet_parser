@@ -47,8 +47,12 @@
   transition: transform 0.15s;
 }
 
-.caretOpen {
-  transform: rotate(180deg);
+.triggerWrap {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  height: auto;
+  align-items: flex-start;
 }
 
 /* Dropdown panel */

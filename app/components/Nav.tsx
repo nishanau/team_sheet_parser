@@ -9,6 +9,7 @@ const NAV_LINKS = [
   { href: "/",               label: "Home" },
   { href: "/teamsheet",      label: "Team Sheet Parser" },
   { href: "/bestandfairest", label: "Best & Fairest" },
+  { href: "/coachesvote",    label: "Coaches Vote" },
 ];
 
 export default function Nav() {

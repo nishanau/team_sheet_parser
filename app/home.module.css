@@ -69,6 +69,10 @@
   border-color: rgba(34,197,94,.4);
 }
 
+.card_blue:hover {
+  border-color: rgba(56,189,248,.4);
+}
+
 .cardIcon {
   font-size: 36px;
   line-height: 1;
@@ -97,6 +101,10 @@
 
 .card_green .cardCta {
   color: var(--accent2);
+}
+
+.card_blue .cardCta {
+  color: rgb(56,189,248);
 }
 
 @media (max-width: 600px) {

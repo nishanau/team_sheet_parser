@@ -42,3 +42,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+#custom files
+playhq_scraper.py
+playhq.db
+local.db-wal
+local.db-shm

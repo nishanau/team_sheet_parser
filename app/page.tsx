@@ -25,6 +25,15 @@ const TOOLS = [
     cta: "Submit Votes →",
     accent: "green",
   },
+  {
+    href: "/coachesvote",
+    icon: "📋",
+    title: "Coaches Vote",
+    description:
+      "SFL Community League coaches submit their top 5 players from either team. One submission per team per game — no login required.",
+    cta: "Submit Votes →",
+    accent: "blue",
+  },
 ];
 
 export default function HomePage() {

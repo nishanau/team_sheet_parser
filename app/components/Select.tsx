@@ -10,6 +10,7 @@ interface SelectProps {
   options: string[] | { label: string; value: string }[];
   required?: boolean;
   className?: string;
+  triggerClassName?: string;
 }
 
 export default function Select({
@@ -19,9 +20,20 @@ export default function Select({
   options,
   required,
   className,
+  triggerClassName,
 }: SelectProps) {
   const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
+  const wrapRef  = useRef<HTMLDivElement>(null);
+  const menuRef  = useRef<HTMLUListElement>(null);
+
+  // Scroll the selected option into view whenever the dropdown opens
+  useEffect(() => {
+    if (!open || !menuRef.current) return;
+    const selected = menuRef.current.querySelector('[aria-selected="true"]') as HTMLElement | null;
+    if (selected) {
+      selected.scrollIntoView({ block: "nearest" });
+    }
+  }, [open]);
 
   // Normalise options to { label, value }
   const normalised = options.map((o) =>
@@ -76,12 +88,12 @@ export default function Select({
       <button
         type="button"
         id={id ? `${id}-btn` : undefined}
-        className={`${styles.trigger} ${open ? styles.triggerOpen : ""}`}
+        className={`${styles.trigger} ${open ? styles.triggerOpen : ""} ${triggerClassName ?? ""}`}
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{selectedLabel}</span>
+        <span style={triggerClassName ? {} : { overflow: "hidden", textOverflow: "ellipsis" }}>{selectedLabel}</span>
         <svg
           className={`${styles.caret} ${open ? styles.caretOpen : ""}`}
           viewBox="0 0 16 16"
@@ -94,7 +106,7 @@ export default function Select({
 
       {/* Dropdown menu */}
       {open && (
-        <ul className={styles.menu} role="listbox">
+        <ul ref={menuRef} className={styles.menu} role="listbox">
           {normalised.map((o) => (
             <li
               key={o.value}

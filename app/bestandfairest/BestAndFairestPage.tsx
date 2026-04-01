@@ -2,14 +2,25 @@
 
 import { useState, useEffect } from "react";
 import styles from "./BestAndFairest.module.css";
+import selectStyles from "../components/Select.module.css";
 import Select from "../components/Select";
+import PlayerInput from "../components/PlayerInput";
+import type { GamePlayer } from "@/app/api/game-players/route";
+import { ROUND_OPTIONS } from "@/lib/constants";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface LeagueData {
-  id: number;
+interface GradeData {
   name: string;
-  ageGroups: string[];
   teams: string[];
+}
+interface AgeGroupData {
+  name: string;
+  grades: GradeData[];
+  teams: string[]; // STJFL hardcoded flat list
+}
+interface LeagueData {
+  name: string;
+  ageGroups: AgeGroupData[];
 }
 
 // Vote weight labels: row 1 = 5 votes … row 5 = 1 vote
@@ -25,31 +36,29 @@ function getTasmanianDate() {
   }).format(new Date());
 }
 
-// Round options: 1–22 plus Finals
-const ROUND_OPTIONS = [
-  ...Array.from({ length: 22 }, (_, i) => `Round ${i + 1}`),
-  "Finals Week 1",
-  "Finals Week 2",
-  "Finals Week 3",
-  "Grand Final",
-];
-
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function BestAndFairestPage() {
   // ── Form state ───────────────────────────────────────────────────────────
-  const [competition, setCompetition]           = useState("");
-  const [matchDate, setMatchDate]               = useState(getTasmanianDate);
-  const [ageGroup, setAgeGroup]                 = useState("");
-  const [opposition, setOpposition]             = useState("");
-  const [round, setRound]                       = useState(ROUND_OPTIONS[0]);
-  const [players, setPlayers]                   = useState(
+  const [competition, setCompetition] = useState("");
+  const [matchDate, setMatchDate]     = useState(getTasmanianDate);
+  const [ageGroup, setAgeGroup]       = useState("");
+  const [grade, setGrade]             = useState("");
+  const [homeTeam, setHomeTeam]       = useState("");
+  const [opposition, setOpposition]   = useState("");
+  const [round, setRound]             = useState(ROUND_OPTIONS[0]);
+  const [players, setPlayers]         = useState(
     Array.from({ length: 5 }, () => ({ number: "", name: "" }))
   );
   const [submitterName, setSubmitterName] = useState("");
   const [initials, setInitials]           = useState("");
   const [submitting, setSubmitting]       = useState(false);
-  const [submitted, setSubmitted]               = useState(false);
-  const [error, setError]                       = useState<string | null>(null);
+  const [submitted, setSubmitted]         = useState(false);
+  const [error, setError]                 = useState<string | null>(null);
+  const [fixtureLoading, setFixtureLoading] = useState(false);
+  const [fixtureFound, setFixtureFound]     = useState<string | null>(null); // info hint
+  const [fixtureGameId, setFixtureGameId]   = useState<string | null>(null); // PlayHQ game id
+  const [gamePlayers, setGamePlayers]       = useState<GamePlayer[]>([]);
+  const [playersLoading, setPlayersLoading] = useState(false);
 
   // ── League data from DB ──────────────────────────────────────────────────
   const [leagueData, setLeagueData]   = useState<LeagueData[]>([]);
@@ -62,19 +71,114 @@ export default function BestAndFairestPage() {
       .then((data: LeagueData[]) => {
         setLeagueData(data);
         if (data.length > 0) {
-          setCompetition(data[0].name);
-          setAgeGroup(data[0].ageGroups[0] ?? "");
-          setOpposition(data[0].teams[0] ?? "");
+          const firstLeague   = data[0];
+          const firstAgeGroup = firstLeague.ageGroups[0];
+          const firstGrade    = firstAgeGroup?.grades[0];
+          setCompetition(firstLeague.name);
+          setAgeGroup(firstAgeGroup?.name ?? "");
+          setGrade(firstGrade?.name ?? "");
         }
       })
       .catch(() => setDataError("Failed to load league data. Please refresh."))
       .finally(() => setDataLoading(false));
   }, []);
 
-  // Derived lists for the currently selected competition
+  // ── Auto-fill Opposition from fixture when grade + round + homeTeam all set ──
+  useEffect(() => {
+    if (!grade || !homeTeam || !round) return;
+    setFixtureLoading(true);
+    setFixtureFound(null);
+    fetch(
+      `/api/fixtures?grade=${encodeURIComponent(grade)}&homeTeam=${encodeURIComponent(homeTeam)}&round=${encodeURIComponent(round)}`
+    )
+      .then((r) => r.json())
+      .then((rows) => {
+        if (Array.isArray(rows) && rows.length > 0) {
+          setOpposition(rows[0].awayTeamName);
+          setFixtureFound(`vs ${rows[0].awayTeamName}`);
+          setFixtureGameId(rows[0].id ?? null);
+        } else {
+          setOpposition("");
+          setFixtureFound(null);
+          setFixtureGameId(null);
+        }
+      })
+      .catch(() => setFixtureFound(null))
+      .finally(() => setFixtureLoading(false));
+  }, [grade, homeTeam, round]);
+
+  // ── Fetch game players from DB/PlayHQ once fixture is resolved ───────────
+  useEffect(() => {
+    if (!fixtureGameId || !homeTeam) { setGamePlayers([]); return; }
+    setPlayersLoading(true);
+    fetch(`/api/game-players?gameId=${encodeURIComponent(fixtureGameId)}&teamName=${encodeURIComponent(homeTeam)}`)
+      .then((r) => r.json())
+      .then((data: { players: GamePlayer[] }) => setGamePlayers(data.players ?? []))
+      .catch(() => setGamePlayers([]))
+      .finally(() => setPlayersLoading(false));
+  }, [fixtureGameId, homeTeam]);
+
+  // ── Derived lists ─────────────────────────────────────────────────────────
   const currentLeague    = leagueData.find((l) => l.name === competition);
   const currentAgeGroups = currentLeague?.ageGroups ?? [];
-  const currentTeams     = currentLeague?.teams ?? [];
+  const currentAgeGroup  = currentAgeGroups.find((ag) => ag.name === ageGroup);
+  const currentGrades    = currentAgeGroup?.grades ?? [];
+  const showGrade        = currentGrades.length > 0;
+
+  // Teams come from the selected grade (SFL) or the flat STJFL list
+  const currentGradeData = currentGrades.find((g) => g.name === grade);
+  const allTeams: string[] = showGrade
+    ? (currentGradeData?.teams ?? [])
+    : (currentAgeGroup?.teams ?? []);
+  const oppositionTeams = allTeams.filter((t) => t !== homeTeam);
+
+  // ── Cascade handlers ─────────────────────────────────────────────────────
+  function handleCompetitionChange(name: string) {
+    const league  = leagueData.find((l) => l.name === name);
+    const firstAg = league?.ageGroups[0];
+    const firstGr = firstAg?.grades[0];
+    setCompetition(name);
+    setAgeGroup(firstAg?.name ?? "");
+    setGrade(firstGr?.name ?? "");
+    setHomeTeam("");
+    setOpposition("");
+    setFixtureFound(null);
+  }
+
+  function handleAgeGroupChange(ag: string) {
+    const ageGroupData = currentLeague?.ageGroups.find((a) => a.name === ag);
+    const firstGrade   = ageGroupData?.grades[0];
+    setAgeGroup(ag);
+    setGrade(firstGrade?.name ?? "");
+    setHomeTeam("");
+    setOpposition("");
+    setFixtureFound(null);
+  }
+
+  function handleGradeChange(g: string) {
+    setGrade(g);
+    setHomeTeam("");
+    setOpposition("");
+    setFixtureFound(null);
+    setFixtureGameId(null);
+    setGamePlayers([]);
+  }
+
+  function handleRoundChange(r: string) {
+    setRound(r);
+    setOpposition("");
+    setFixtureFound(null);
+    setFixtureGameId(null);
+    setGamePlayers([]);
+  }
+
+  function handleHomeTeamChange(t: string) {
+    setHomeTeam(t);
+    setOpposition("");
+    setFixtureFound(null);
+    setFixtureGameId(null);
+    setGamePlayers([]);
+  }
 
   function updatePlayer(idx: number, field: "number" | "name", value: string) {
     setPlayers((prev) => {
@@ -82,14 +186,6 @@ export default function BestAndFairestPage() {
       next[idx] = { ...next[idx], [field]: value };
       return next;
     });
-  }
-
-  function handleCompetitionChange(name: string) {
-    const league = leagueData.find((l) => l.name === name);
-    setCompetition(name);
-    setAgeGroup(league?.ageGroups[0] ?? "");
-    setOpposition(league?.teams[0] ?? "");
-    // round stays as-is when competition changes
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -107,9 +203,9 @@ export default function BestAndFairestPage() {
 
     // Duplicate player number check
     const enteredNumbers = players.map((p) => p.number.trim()).filter(Boolean);
-    const uniqueNumbers = new Set(enteredNumbers);
+    const uniqueNumbers  = new Set(enteredNumbers);
     if (uniqueNumbers.size !== enteredNumbers.length) {
-      const seen = new Set<string>();
+      const seen  = new Set<string>();
       const dupes = enteredNumbers.filter((n) => seen.size === seen.add(n).size);
       setError(`Duplicate player number${dupes.length > 1 ? "s" : ""}: ${[...new Set(dupes)].join(", ")}. Each player must have a unique number.`);
       return;
@@ -124,6 +220,8 @@ export default function BestAndFairestPage() {
           competition,
           matchDate,
           ageGroup,
+          grade:     showGrade ? grade : null,
+          homeTeam,
           opposition,
           round,
           player1Number: players[0].number || null,
@@ -153,11 +251,16 @@ export default function BestAndFairestPage() {
 
   function handleReset() {
     setMatchDate(getTasmanianDate());
-    const first = leagueData[0];
+    const first   = leagueData[0];
+    const firstAg = first?.ageGroups[0];
+    const firstGr = firstAg?.grades[0];
     setCompetition(first?.name ?? "");
-    setAgeGroup(first?.ageGroups[0] ?? "");
-    setOpposition(first?.teams[0] ?? "");
+    setAgeGroup(firstAg?.name ?? "");
+    setGrade(firstGr?.name ?? "");
     setRound(ROUND_OPTIONS[0]);
+    setHomeTeam("");
+    setOpposition("");
+    setFixtureFound(null);
     setPlayers(Array.from({ length: 5 }, () => ({ number: "", name: "" })));
     setSubmitterName("");
     setInitials("");
@@ -196,8 +299,8 @@ export default function BestAndFairestPage() {
           <div className={styles.successIcon}>✓</div>
           <h2 className={styles.successTitle}>Votes Submitted!</h2>
           <p className={styles.successSub}>
-            Best &amp; Fairest votes for <strong>{opposition}</strong> on{" "}
-            <strong>{matchDate}</strong> have been recorded.
+            Best &amp; Fairest votes for <strong>{homeTeam}</strong> vs{" "}
+            <strong>{opposition}</strong> on <strong>{matchDate}</strong> have been recorded.
           </p>
           <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={handleReset}>
             Submit Another
@@ -227,21 +330,10 @@ export default function BestAndFairestPage() {
           {/* ── Match Details ── */}
           <section className={styles.section}>
             <div className={styles.sectionTitle}>Match Details</div>
+            {/* Row 1 — What game: Competition › Age Group › Grade */}
             <div className={styles.fieldRow}>
 
-              <div className={styles.fieldGroup}>
-                <label className={styles.label} htmlFor="matchDate">Date</label>
-                <input
-                  id="matchDate"
-                  type="date"
-                  className={styles.input}
-                  value={matchDate}
-                  onChange={(e) => setMatchDate(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className={styles.fieldGroup}>
+              <div className={`${styles.fieldGroup} ${styles.fieldGroupNarrow}`}>
                 <label className={styles.label} htmlFor="competition">Competition</label>
                 <Select
                   id="competition"
@@ -257,30 +349,83 @@ export default function BestAndFairestPage() {
                 <Select
                   id="ageGroup"
                   value={ageGroup}
-                  onChange={setAgeGroup}
-                  options={currentAgeGroups}
+                  onChange={handleAgeGroupChange}
+                  options={currentAgeGroups.map((ag) => ag.name)}
                   required
                 />
               </div>
 
-              <div className={styles.fieldGroup}>
-                <label className={styles.label} htmlFor="opposition">Opposition</label>
-                <Select
-                  id="opposition"
-                  value={opposition}
-                  onChange={setOpposition}
-                  options={currentTeams}
-                  required
-                />
-              </div>
+              {showGrade && (
+                <div className={`${styles.fieldGroup} ${styles.fieldGroupWide}`}>
+                  <label className={styles.label} htmlFor="grade">Grade</label>
+                  <Select
+                    id="grade"
+                    value={grade}
+                    onChange={handleGradeChange}
+                    options={currentGrades.map((g) => g.name)}
+                    required
+                    triggerClassName={selectStyles.triggerWrap}
+                  />
+                </div>
+              )}
+
+            </div>
+
+            {/* Row 2 — When: Round + Date */}
+            <div className={styles.fieldRow}>
 
               <div className={styles.fieldGroup}>
                 <label className={styles.label} htmlFor="round">Round</label>
                 <Select
                   id="round"
                   value={round}
-                  onChange={setRound}
+                  onChange={handleRoundChange}
                   options={ROUND_OPTIONS}
+                  required
+                />
+              </div>
+
+              <div className={styles.fieldGroup}>
+                <label className={styles.label} htmlFor="matchDate">Date</label>
+                <input
+                  id="matchDate"
+                  type="date"
+                  className={styles.input}
+                  value={matchDate}
+                  onChange={(e) => setMatchDate(e.target.value)}
+                  required
+                />
+              </div>
+
+            </div>
+
+            {/* Row 3 — Who: Home Team + Opposition */}
+            <div className={styles.fieldRow}>
+
+              <div className={`${styles.fieldGroup} ${styles.fieldGroupHalf}`}>
+                <label className={styles.label} htmlFor="homeTeam">Home Team</label>
+                <Select
+                  id="homeTeam"
+                  value={homeTeam}
+                  onChange={handleHomeTeamChange}
+                  options={allTeams}
+                  required
+                />
+                {fixtureLoading && (
+                  <p className={styles.fieldHint}>Looking up opposition…</p>
+                )}
+                {fixtureFound && !fixtureLoading && (
+                  <p className={styles.fieldHint}>✓ Auto-filled: {fixtureFound}</p>
+                )}
+              </div>
+
+              <div className={`${styles.fieldGroup} ${styles.fieldGroupHalf}`}>
+                <label className={styles.label} htmlFor="opposition">Opposition</label>
+                <Select
+                  id="opposition"
+                  value={opposition}
+                  onChange={setOpposition}
+                  options={oppositionTeams}
                   required
                 />
               </div>
@@ -288,19 +433,21 @@ export default function BestAndFairestPage() {
             </div>
           </section>
 
-          {/* ── Vote Table ── */}
           <section className={styles.section}>
             <div className={styles.sectionTitle}>Player Votes</div>
             <p className={styles.sectionHint}>
-              Enter the player number and name for each vote position.
+              {gamePlayers.length > 0
+                ? "Type a jumper number or name to search the team list."
+                : playersLoading
+                ? "Loading team players…"
+                : "Enter the player number and name for each vote position."}
             </p>
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
                   <tr>
                     <th className={styles.th} style={{ width: 56 }}>Votes</th>
-                    <th className={styles.th} style={{ width: 90 }}>Number</th>
-                    <th className={styles.th}>Name</th>
+                    <th className={styles.th}>Player</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -310,25 +457,16 @@ export default function BestAndFairestPage() {
                         <span className={styles.voteBadge}>{VOTE_LABELS[i]}</span>
                       </td>
                       <td className={styles.td}>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          className={styles.tableInput}
-                          placeholder="#"
-                          value={p.number}
-                          onChange={(e) => updatePlayer(i, "number", e.target.value)}
-                          maxLength={4}
-                          required
-                        />
-                      </td>
-                      <td className={styles.td}>
-                        <input
-                          type="text"
-                          className={`${styles.tableInput} ${styles.tableInputName}`}
-                          placeholder="Player name"
-                          value={p.name}
-                          onChange={(e) => updatePlayer(i, "name", e.target.value)}
-                          required
+                        <PlayerInput
+                          numberValue={p.number}
+                          nameValue={p.name}
+                          players={gamePlayers}
+                          onNumberChange={(v) => updatePlayer(i, "number", v)}
+                          onNameChange={(v) => updatePlayer(i, "name", v)}
+                          onSelect={(num, name) => {
+                            updatePlayer(i, "number", num);
+                            updatePlayer(i, "name", name);
+                          }}
                         />
                       </td>
                     </tr>

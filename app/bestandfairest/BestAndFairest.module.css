@@ -65,6 +65,13 @@
   line-height: 1.4;
 }
 
+.fieldHint {
+  font-size: 11px;
+  color: var(--accent);
+  margin: 4px 0 0;
+  line-height: 1.4;
+}
+
 /* Field layout */
 .fieldRow {
   display: flex;
@@ -78,6 +85,22 @@
   gap: 6px;
   flex: 1 1 160px;
   min-width: 0;
+}
+
+/* Competition is a short word — cap its width */
+.fieldGroupNarrow {
+  flex: 0 0 130px;
+}
+
+/* Grade names are long — grow to fill remaining space in the row */
+.fieldGroupWide {
+  flex: 2 1 200px;
+}
+
+/* Home Team / Opposition — equal halves */
+.fieldGroupHalf {
+  flex: 1 1 calc(50% - 8px);
+  min-width: 160px;
 }
 
 .label {
@@ -254,6 +277,18 @@
 
 .btnPrimary:disabled {
   filter: none;
+}
+
+.btnSecondary {
+  background: transparent;
+  border-color: rgba(255,255,255,.25);
+  color: rgba(255,255,255,.7);
+}
+
+.btnSecondary:hover {
+  background: rgba(255,255,255,.08);
+  border-color: rgba(255,255,255,.4);
+  color: rgba(255,255,255,.9);
 }
 
 .formFooter {
