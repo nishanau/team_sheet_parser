@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { fixtures, coachesVotes } from "@/db/schema";
-import { and, eq, lte, or } from "drizzle-orm";
+import { and, eq, /* lte, */ or } from "drizzle-orm";
 
 /**
- * GET /api/coaches-vote/fixtures?grade=...&teamName=...&code=...
+ * GET /api/coaches-vote/fixtures?grade=...&teamName=...
  *
  * Returns fixtures for the given grade where:
  *   - The team is either home or away
- *   - match_date <= today (Tasmanian time)
+ *   - [TEMPORARILY DISABLED] match_date <= today (Tasmanian time)
  *   - No coaches vote has been submitted for this game by this team yet
  *
  * Results ordered newest first.
@@ -25,21 +25,21 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Today in Tasmanian time (YYYY-MM-DD)
-  const today = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Australia/Hobart",
-    year: "numeric", month: "2-digit", day: "2-digit",
-  }).format(new Date());
+  // // Today in Tasmanian time (YYYY-MM-DD) — disabled for testing
+  // const today = new Intl.DateTimeFormat("en-CA", {
+  //   timeZone: "Australia/Hobart",
+  //   year: "numeric", month: "2-digit", day: "2-digit",
+  // }).format(new Date());
 
   try {
-    // Fixtures where team is home or away, on or before today
+    // All fixtures for this team (home or away) — date filter disabled for testing
     const played = await db
       .select()
       .from(fixtures)
       .where(
         and(
           eq(fixtures.gradeName, grade),
-          lte(fixtures.matchDate, today),
+          // lte(fixtures.matchDate, today), // re-enable to restrict to past matches
           or(
             eq(fixtures.homeTeamName, teamName),
             eq(fixtures.awayTeamName, teamName),
