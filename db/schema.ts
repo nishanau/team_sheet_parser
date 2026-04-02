@@ -15,6 +15,33 @@ export const leaguesRelations = relations(leagues, ({ many }) => ({
 export type LeagueInsert = typeof leagues.$inferInsert;
 export type LeagueSelect = typeof leagues.$inferSelect;
 
+// ─── Clubs ────────────────────────────────────────────────────────────────────
+// Parent organisation that may field teams across multiple leagues and grades.
+// playhqId is the club's routingCode from the PlayHQ search API.
+export const clubs = sqliteTable("clubs", {
+  id:       integer("id").primaryKey({ autoIncrement: true }),
+  name:     text("name").notNull().unique(),
+  playhqId: text("playhq_id").unique(),
+});
+
+export type ClubInsert = typeof clubs.$inferInsert;
+export type ClubSelect = typeof clubs.$inferSelect;
+
+// ─── Admin Users ──────────────────────────────────────────────────────────────
+// role "superadmin" → clubId and leagueId are null (sees everything)
+// role "club_admin"  → scoped to (clubId, leagueId)
+export const adminUsers = sqliteTable("admin_users", {
+  id:           integer("id").primaryKey({ autoIncrement: true }),
+  username:     text("username").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  role:         text("role", { enum: ["superadmin", "club_admin"] }).notNull(),
+  clubId:       integer("club_id").references(() => clubs.id),
+  leagueId:     integer("league_id").references(() => leagues.id),
+});
+
+export type AdminUserInsert = typeof adminUsers.$inferInsert;
+export type AdminUserSelect = typeof adminUsers.$inferSelect;
+
 // ─── Teams ────────────────────────────────────────────────────────────────────
 // A team belongs to a league. ageGroup scopes which division they play in.
 export const teams = sqliteTable("teams", {
@@ -22,6 +49,7 @@ export const teams = sqliteTable("teams", {
   leagueId:  integer("league_id").notNull().references(() => leagues.id, { onDelete: "cascade" }),
   name:      text("name").notNull(),
   gradeName: text("grade_name"),   // PlayHQ grade e.g. "SFL Premier League Senior Men"; null = STJFL fallback
+  clubId:    integer("club_id").references(() => clubs.id),
 });
 
 export const teamsRelations = relations(teams, ({ one }) => ({
