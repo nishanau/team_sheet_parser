@@ -193,13 +193,19 @@ export async function runSync(log: string[]): Promise<void> {
   // active season ID per org — collected here for reuse in Step 7
   const activeSeasonIds: Record<string, string> = {};
 
-  const orgIds = [SFL_ORG_ID, STJFL_ORG_ID];
-  const compDataByOrg: Record<string, CompData> = {};
+  // Fetch both orgs' competitions in parallel, then process seasons sequentially per org
+  const [sflCompData, stjflCompData] = await Promise.all([
+    gql<CompData>(Q_COMPETITIONS, { organisationID: SFL_ORG_ID }),
+    gql<CompData>(Q_COMPETITIONS, { organisationID: STJFL_ORG_ID }),
+  ]);
+  const compDataByOrg: Record<string, CompData> = {
+    [SFL_ORG_ID]: sflCompData,
+    [STJFL_ORG_ID]: stjflCompData,
+  };
 
-  for (const orgId of orgIds) {
-    const label = orgId === SFL_ORG_ID ? "SFL" : "STJFL";
-    const compData = await gql<CompData>(Q_COMPETITIONS, { organisationID: orgId });
-    compDataByOrg[orgId] = compData;
+  for (const orgId of [SFL_ORG_ID, STJFL_ORG_ID]) {
+    const label    = orgId === SFL_ORG_ID ? "SFL" : "STJFL";
+    const compData = compDataByOrg[orgId];
 
     for (const comp of compData.discoverCompetitions ?? []) {
       for (const season of comp.seasons ?? []) {
@@ -317,19 +323,16 @@ export async function runSync(log: string[]): Promise<void> {
     if (g.awayTeamName) map.set(`${g.gradeName}::${g.awayTeamName}`, g.gradeName);
   }
 
-  let teamsInserted = 0;
+  const teamInserts: { sql: string; args: (string | number)[] }[] = [];
   for (const [leagueId, teamMap] of [[sflLeagueId, sflTeamRows], [stjflLeagueId, stjflTeamRows]] as [number, Map<string, string>][]) {
     for (const [key, gradeName] of teamMap) {
       const teamName = key.slice(gradeName.length + 2);
       if (!teamName || teamName === "TBC") continue;
-      await client.execute({
-        sql:  "INSERT INTO teams (league_id, name, grade_name) VALUES (?, ?, ?)",
-        args: [leagueId, teamName, gradeName],
-      });
-      teamsInserted++;
+      teamInserts.push({ sql: "INSERT INTO teams (league_id, name, grade_name) VALUES (?, ?, ?)", args: [leagueId, teamName, gradeName] });
     }
   }
-  log.push(`Teams inserted: ${teamsInserted}`);
+  if (teamInserts.length > 0) await client.batch(teamInserts, "write");
+  log.push(`Teams inserted: ${teamInserts.length}`);
 
   // ── Step 5: Write fixtures to DB ──────────────────────────────────────────
   // Delete and replace SFL fixtures by grade name
@@ -344,25 +347,25 @@ export async function runSync(log: string[]): Promise<void> {
     await client.execute({ sql: `DELETE FROM fixtures WHERE grade_name IN (${stjflPh})`, args: stjflGradeNames });
   }
 
-  let gamesInserted = 0;
+  const fixtureInserts: { sql: string; args: (string | null)[] }[] = [];
   for (const g of allGames.values()) {
     if (!g.homeTeamName || !g.awayTeamName || !g.date) continue;
-    await client.execute({
-      sql: `INSERT OR REPLACE INTO fixtures
-              (id, grade_name, round_name, match_date, home_team_name, away_team_name, venue_name)
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    fixtureInserts.push({
+      sql:  `INSERT OR REPLACE INTO fixtures (id, grade_name, round_name, match_date, home_team_name, away_team_name, venue_name) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       args: [g.id, g.gradeName, g.roundName, g.date, g.homeTeamName, g.awayTeamName, g.venueName],
     });
-    gamesInserted++;
   }
-  log.push(`Fixtures inserted: ${gamesInserted}`);
+  if (fixtureInserts.length > 0) await client.batch(fixtureInserts, "write");
+  log.push(`Fixtures inserted: ${fixtureInserts.length}`);
 
   // ── Step 6: Fetch clubs for SFL and STJFL ────────────────────────────────
   log.push("Fetching clubs from PlayHQ...");
 
-  const sflClubs   = await fetchClubsForLeague("(sfl) tas");
-  const stjflClubs = await fetchClubsForLeague("(stjfl)");
-  const allClubs   = [...sflClubs, ...stjflClubs];
+  const [sflClubs, stjflClubs] = await Promise.all([
+    fetchClubsForLeague("(sfl) tas"),
+    fetchClubsForLeague("(stjfl)"),
+  ]);
+  const allClubs = [...sflClubs, ...stjflClubs];
 
   log.push(`  Clubs found: ${sflClubs.length} SFL, ${stjflClubs.length} STJFL`);
 
@@ -412,16 +415,17 @@ export async function runSync(log: string[]): Promise<void> {
     const clubId = clubRow.rows[0]?.id;
     if (!clubId) return;
 
-    // Link each team to this club by (name, grade_name)
-    for (const team of data.discoverTeams ?? []) {
-      const gn = team.grade?.name ?? "";
-      // For SFL clubs only link ALLOWED_GRADES; STJFL links all grades
-      if (!isStjfl && !ALLOWED_GRADES.has(gn)) continue;
-      await client.execute({
+    // Link each team to this club by (name, grade_name) — batched in one round-trip
+    const teamUpdates = (data.discoverTeams ?? [])
+      .filter((team) => {
+        const gn = team.grade?.name ?? "";
+        return isStjfl || ALLOWED_GRADES.has(gn);
+      })
+      .map((team) => ({
         sql:  "UPDATE teams SET club_id = ? WHERE name = ? AND grade_name = ?",
-        args: [clubId, team.name, gn],
-      });
-    }
+        args: [clubId, team.name, team.grade?.name ?? ""] as (string | number)[],
+      }));
+    if (teamUpdates.length > 0) await client.batch(teamUpdates, "write");
 
     clubsLinked++;
   });
