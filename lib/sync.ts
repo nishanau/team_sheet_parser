@@ -79,6 +79,39 @@ query teamFixture($teamID: ID!) {
   }
 }`;
 
+const Q_SEARCH_CLUBS = `
+query search($filter: SearchFilter!) {
+  search(filter: $filter) {
+    results {
+      ... on Organisation {
+        id
+        routingCode
+        name
+        __typename
+      }
+      __typename
+    }
+  }
+}`;
+
+const Q_ORG_TEAMS = `
+query discoverOrganisationTeams(
+  $seasonCode: String!, $seasonId: ID!,
+  $organisationCode: String!, $organisationId: ID!
+) {
+  discoverTeams(filter: { seasonID: $seasonId, organisationID: $organisationId }) {
+    id
+    name
+    grade { id name __typename }
+    __typename
+  }
+  discoverOrganisation(code: $organisationCode) {
+    id
+    name
+    __typename
+  }
+}`;
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 async function gql<T = Record<string, unknown>>(
   query: string,
@@ -120,6 +153,21 @@ async function batchedMap<T, R>(
     if (i + batchSize < items.length) await sleep(delayMs);
   }
   return results;
+}
+
+async function fetchClubsForLeague(searchQuery: string): Promise<{ routingCode: string; name: string }[]> {
+  type SearchData = {
+    search: { results: { routingCode?: string; name?: string; __typename: string }[] };
+  };
+  const data = await gql<SearchData>(Q_SEARCH_CLUBS, {
+    filter: {
+      meta:         { limit: 30, page: 1 },
+      organisation: { query: searchQuery, types: ["CLUB"], sports: ["AFL"] },
+    },
+  });
+  return (data.search?.results ?? [])
+    .filter((r) => r.__typename === "Organisation" && r.routingCode)
+    .map((r) => ({ routingCode: r.routingCode!, name: r.name ?? "" }));
 }
 
 // ─── Main sync ────────────────────────────────────────────────────────────────
@@ -289,4 +337,89 @@ export async function runSync(log: string[]): Promise<void> {
     gamesInserted++;
   }
   log.push(`Fixtures inserted: ${gamesInserted}`);
+
+  // ── Step 6: Fetch clubs for SFL and STJFL ────────────────────────────────
+  log.push("Fetching clubs from PlayHQ...");
+
+  const sflClubs   = await fetchClubsForLeague("(sfl) tas");
+  const stjflClubs = await fetchClubsForLeague("(stjfl)");
+  const allClubs   = [...sflClubs, ...stjflClubs];
+
+  log.push(`  Clubs found: ${sflClubs.length} SFL, ${stjflClubs.length} STJFL`);
+
+  // ── Step 7: For each club, get its teams for the active season and link ──
+  // Collect active season IDs per org (SFL season already found in Step 1)
+  const seasonIds: Record<string, string> = {};
+  for (const comp of compData.discoverCompetitions ?? []) {
+    for (const season of comp.seasons ?? []) {
+      if (!["ACTIVE", "UPCOMING"].includes(season.status?.value ?? "")) continue;
+      seasonIds[SFL_ORG_ID] = season.id;
+    }
+  }
+
+  // Fetch STJFL active season
+  type StjflCompData = typeof compData;
+  const stjflCompData = await gql<StjflCompData>(Q_COMPETITIONS, { organisationID: STJFL_ORG_ID });
+  for (const comp of stjflCompData.discoverCompetitions ?? []) {
+    for (const season of comp.seasons ?? []) {
+      if (!["ACTIVE", "UPCOMING"].includes(season.status?.value ?? "")) continue;
+      seasonIds[STJFL_ORG_ID] = season.id;
+    }
+  }
+
+  const sflSeasonId   = seasonIds[SFL_ORG_ID];
+  const stjflSeasonId = seasonIds[STJFL_ORG_ID];
+
+  type OrgTeamsData = {
+    discoverTeams: { id: string; name: string; grade: { id: string; name: string } }[];
+    discoverOrganisation: { id: string; name: string };
+  };
+
+  let clubsLinked = 0;
+
+  await batchedMap(allClubs, 5, 300, async (club) => {
+    const isStjfl   = stjflClubs.some((c) => c.routingCode === club.routingCode);
+    const seasonId  = isStjfl ? stjflSeasonId : sflSeasonId;
+
+    if (!seasonId) {
+      log.push(`  Skipping ${club.name} — no active season found`);
+      return;
+    }
+
+    const data = await gql<OrgTeamsData>(Q_ORG_TEAMS, {
+      seasonCode:       seasonId,
+      seasonId:         seasonId,
+      organisationCode: club.routingCode,
+      organisationId:   club.routingCode,
+    });
+
+    const clubName = data.discoverOrganisation?.name ?? club.name;
+
+    // Upsert club by playhq_id
+    await client.execute({
+      sql: `INSERT INTO clubs (name, playhq_id) VALUES (?, ?)
+            ON CONFLICT (playhq_id) DO UPDATE SET name = excluded.name`,
+      args: [clubName, club.routingCode],
+    });
+
+    const clubRow = await client.execute({
+      sql:  "SELECT id FROM clubs WHERE playhq_id = ?",
+      args: [club.routingCode],
+    });
+    const clubId = clubRow.rows[0]?.id;
+    if (!clubId) return;
+
+    // Link each team to this club by (name, grade_name)
+    for (const team of data.discoverTeams ?? []) {
+      if (!ALLOWED_GRADES.has(team.grade?.name ?? "") && !isStjfl) continue;
+      await client.execute({
+        sql:  "UPDATE teams SET club_id = ? WHERE name = ? AND grade_name = ?",
+        args: [clubId, team.name, team.grade?.name ?? ""],
+      });
+    }
+
+    clubsLinked++;
+  });
+
+  log.push(`Clubs upserted and teams linked: ${clubsLinked}`);
 }
