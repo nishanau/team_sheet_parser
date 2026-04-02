@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "@/auth";
+import { SessionProvider } from "next-auth/react";
 import styles from "./layout.module.css";
 
 const NAV = [
@@ -36,7 +37,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </form>
         </div>
       </aside>
-      <main className={styles.main}>{children}</main>
+      <SessionProvider>
+        <main className={styles.main}>{children}</main>
+      </SessionProvider>
     </div>
   );
 }
