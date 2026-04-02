@@ -1,13 +1,12 @@
 "use client";
 import { signIn } from "next-auth/react";
 import { useState, FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import styles from "./login.module.css";
 
 export default function LoginPage() {
-  const [error, setError]     = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const router                = useRouter();
+  const [error, setError]         = useState<string | null>(null);
+  const [loading, setLoading]     = useState(false);
+  const [showPass, setShowPass]   = useState(false);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -23,7 +22,7 @@ export default function LoginPage() {
     if (result?.error) {
       setError("Invalid username or password.");
     } else {
-      router.push("/admin/leaderboard");
+      window.location.assign("/admin/leaderboard");
     }
   }
 
@@ -38,7 +37,22 @@ export default function LoginPage() {
           </label>
           <label className={styles.label}>
             Password
-            <input name="password" type="password" className={styles.input} required />
+            <div className={styles.passwordWrap}>
+              <input
+                name="password"
+                type={showPass ? "text" : "password"}
+                className={styles.input}
+                required
+              />
+              <button
+                type="button"
+                className={styles.eyeBtn}
+                onClick={() => setShowPass((v) => !v)}
+                aria-label={showPass ? "Hide password" : "Show password"}
+              >
+                {showPass ? "🙈" : "👁"}
+              </button>
+            </div>
           </label>
           {error && <p className={styles.error}>{error}</p>}
           <button type="submit" className={styles.btn} disabled={loading}>

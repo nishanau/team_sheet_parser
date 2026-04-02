@@ -132,8 +132,40 @@
   font-weight: 600;
 }
 
+/* Admin login link */
+.adminLink {
+  text-decoration: none;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.12);
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  margin-left: 8px;
+}
+.adminLink:hover { color: var(--text); border-color: rgba(255,255,255,0.25); }
+
+.drawerAdminLink {
+  text-decoration: none;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 14px;
+  border-radius: 10px;
+  margin-top: 4px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding-top: 14px;
+}
+.drawerAdminLink:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+
 @media (max-width: 600px) {
   .links {
+    display: none;
+  }
+
+  .adminLink {
     display: none;
   }
 

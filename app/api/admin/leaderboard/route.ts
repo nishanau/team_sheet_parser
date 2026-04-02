@@ -4,12 +4,14 @@ import { and, eq, inArray } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { bestAndFairest, coachesVotes, teams } from "@/db/schema";
+import { ROUND_OPTIONS } from "@/lib/constants";
 
 // Vote weight per position (index 0 = player1 = 5 votes)
 const VOTE_WEIGHTS = [5, 4, 3, 2, 1];
 
 type VoteEntry = { playerName: string; playerNumber: string | null; team: string; votes: number; round: string };
 type LeaderboardRow = { rank: number; playerName: string; playerNumber: string | null; team: string; roundVotes: number; totalVotes: number };
+type PivotRow = { rank: number; playerName: string; playerNumber: string | null; team: string; roundBreakdown: Record<string, number>; totalVotes: number };
 
 function extractVotes(
   rows: { player1Name: string | null; player1Number: string | null; player2Name: string | null; player2Number: string | null; player3Name: string | null; player3Number: string | null; player4Name: string | null; player4Number: string | null; player5Name: string | null; player5Number: string | null; homeTeam?: string | null; coachTeam?: string | null; round: string }[],
@@ -30,20 +32,44 @@ function extractVotes(
       const [nameKey, numKey] = playerFields[i];
       const name = row[nameKey];
       if (!name) continue;
+      // Key on name + number + team so same name but different number = different player
       result.push({ playerName: name, playerNumber: row[numKey] ?? null, team, votes: VOTE_WEIGHTS[i], round: row.round });
     }
   }
   return result;
 }
 
-function buildLeaderboard(entries: VoteEntry[], selectedRound: string | "all"): LeaderboardRow[] {
-  const map = new Map<string, LeaderboardRow & { rank: number }>();
+// Unique key: name + number + team (number differentiates same-name players)
+function playerKey(e: VoteEntry) {
+  return `${e.playerName}::${e.playerNumber ?? ""}::${e.team}`;
+}
+
+function buildLeaderboard(entries: VoteEntry[], selectedRound: string): LeaderboardRow[] {
+  const map = new Map<string, LeaderboardRow>();
   for (const e of entries) {
-    const key      = `${e.playerName}::${e.team}`;
-    const existing = map.get(key) ?? { rank: 0, playerName: e.playerName, playerNumber: e.playerNumber, team: e.team, roundVotes: 0, totalVotes: 0 };
-    existing.totalVotes += e.votes;
-    if (selectedRound !== "all" && e.round === selectedRound) existing.roundVotes += e.votes;
-    map.set(key, existing);
+    const key = playerKey(e);
+    if (!map.has(key)) {
+      map.set(key, { rank: 0, playerName: e.playerName, playerNumber: e.playerNumber, team: e.team, roundVotes: 0, totalVotes: 0 });
+    }
+    const row = map.get(key)!;
+    row.totalVotes += e.votes;
+    if (e.round === selectedRound) row.roundVotes += e.votes;
+  }
+  return [...map.values()]
+    .sort((a, b) => b.totalVotes - a.totalVotes)
+    .map((r, i) => ({ ...r, rank: i + 1 }));
+}
+
+function buildPivot(entries: VoteEntry[], usedRounds: string[]): PivotRow[] {
+  const map = new Map<string, PivotRow>();
+  for (const e of entries) {
+    const key = playerKey(e);
+    if (!map.has(key)) {
+      map.set(key, { rank: 0, playerName: e.playerName, playerNumber: e.playerNumber, team: e.team, roundBreakdown: {}, totalVotes: 0 });
+    }
+    const row = map.get(key)!;
+    row.totalVotes += e.votes;
+    row.roundBreakdown[e.round] = (row.roundBreakdown[e.round] ?? 0) + e.votes;
   }
   return [...map.values()]
     .sort((a, b) => b.totalVotes - a.totalVotes)
@@ -73,23 +99,31 @@ export async function GET(req: NextRequest) {
       .from(teams)
       .where(and(eq(teams.clubId, session.user.clubId), eq(teams.leagueId, session.user.leagueId)));
     scopedTeamNames = clubTeams.map((t) => t.name);
-    if (scopedTeamNames.length === 0) return NextResponse.json([]);
+    if (scopedTeamNames.length === 0) return NextResponse.json({ rows: [], rounds: [] });
   }
+
+  let entries: VoteEntry[];
 
   if (type === "coaches") {
-    const filters = [eq(coachesVotes.grade, grade)];
-    const rows = await db.select().from(coachesVotes).where(and(...filters));
-    const entries = extractVotes(rows as Parameters<typeof extractVotes>[0], "coachTeam");
-    return NextResponse.json(buildLeaderboard(entries, round));
+    const rows = await db.select().from(coachesVotes).where(eq(coachesVotes.grade, grade));
+    entries = extractVotes(rows as Parameters<typeof extractVotes>[0], "coachTeam");
+  } else {
+    // Best & Fairest
+    const bfFilters = [
+      eq(bestAndFairest.competition, competition),
+      ...(grade ? [eq(bestAndFairest.grade, grade)] : []),
+      ...(scopedTeamNames ? [inArray(bestAndFairest.homeTeam as any, scopedTeamNames)] : []),
+    ];
+    const rows = await db.select().from(bestAndFairest).where(and(...bfFilters));
+    entries = extractVotes(rows as Parameters<typeof extractVotes>[0], "homeTeam");
   }
 
-  // Best & Fairest
-  const bfFilters = [
-    eq(bestAndFairest.competition, competition),
-    ...(grade ? [eq(bestAndFairest.grade, grade)] : []),
-    ...(scopedTeamNames ? [inArray(bestAndFairest.homeTeam as any, scopedTeamNames)] : []),
-  ];
-  const rows = await db.select().from(bestAndFairest).where(and(...bfFilters));
-  const entries = extractVotes(rows as Parameters<typeof extractVotes>[0], "homeTeam");
-  return NextResponse.json(buildLeaderboard(entries, round));
+  if (round === "all") {
+    // Find which rounds actually have votes, in canonical order
+    const usedRoundsSet = new Set(entries.map((e) => e.round));
+    const usedRounds = ROUND_OPTIONS.filter((r) => usedRoundsSet.has(r));
+    return NextResponse.json({ mode: "pivot", rows: buildPivot(entries, usedRounds), rounds: usedRounds });
+  }
+
+  return NextResponse.json({ mode: "round", rows: buildLeaderboard(entries, round), rounds: [] });
 }

@@ -1,0 +1,78 @@
+<h2>Admin Portal — Layout Options</h2>
+<p class="subtitle">Which navigation structure feels right for the admin portal?</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Sidebar Navigation</h3>
+      <p>Fixed left sidebar with section links, content fills the rest of the screen. Standard admin dashboard pattern.</p>
+      <div class="mockup" style="margin-top:12px">
+        <div class="mockup-header">Admin Portal — Sidebar</div>
+        <div class="mockup-body" style="display:flex;gap:0;padding:0;min-height:200px">
+          <div style="width:160px;background:#1e293b;padding:16px;flex-shrink:0;border-radius:0 0 0 8px">
+            <div style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:1px;margin-bottom:12px">SFL ADMIN</div>
+            <div style="color:#f1f5f9;font-size:12px;padding:6px 8px;background:#334155;border-radius:4px;margin-bottom:4px">📊 Leaderboard</div>
+            <div style="color:#94a3b8;font-size:12px;padding:6px 8px;margin-bottom:4px">🔑 Access Codes</div>
+            <div style="color:#94a3b8;font-size:12px;padding:6px 8px;margin-bottom:4px">📅 Fixtures</div>
+            <div style="color:#94a3b8;font-size:12px;padding:6px 8px;margin-bottom:4px">🔄 Sync</div>
+            <div style="color:#94a3b8;font-size:12px;padding:6px 8px;margin-bottom:4px">⚠️ Alerts</div>
+            <div style="margin-top:auto;padding-top:24px;color:#64748b;font-size:11px">Logged in as<br><span style="color:#94a3b8">superadmin</span></div>
+          </div>
+          <div style="flex:1;padding:16px;background:#f8fafc;border-radius:0 0 8px 0">
+            <div style="font-size:13px;font-weight:600;color:#1e293b;margin-bottom:12px">Best &amp; Fairest Leaderboard</div>
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+              <div style="background:#e2e8f0;border-radius:4px;padding:4px 10px;font-size:11px;color:#475569">SFL Community League Senior Men ▾</div>
+              <div style="background:#e2e8f0;border-radius:4px;padding:4px 10px;font-size:11px;color:#475569">Round 3 ▾</div>
+              <div style="background:#e2e8f0;border-radius:4px;padding:4px 10px;font-size:11px;color:#475569">Export CSV</div>
+            </div>
+            <div style="background:white;border-radius:4px;border:1px solid #e2e8f0;font-size:11px">
+              <div style="display:grid;grid-template-columns:32px 1fr 80px 80px;padding:6px 10px;background:#f1f5f9;font-weight:600;color:#475569">#<span>Player</span><span>Round</span><span>Total</span></div>
+              <div style="display:grid;grid-template-columns:32px 1fr 80px 80px;padding:6px 10px;border-top:1px solid #e2e8f0;color:#1e293b">1<span>J. Smith</span><span>5</span><span>14</span></div>
+              <div style="display:grid;grid-template-columns:32px 1fr 80px 80px;padding:6px 10px;border-top:1px solid #e2e8f0;color:#1e293b">2<span>M. Jones</span><span>4</span><span>11</span></div>
+              <div style="display:grid;grid-template-columns:32px 1fr 80px 80px;padding:6px 10px;border-top:1px solid #e2e8f0;color:#64748b">3<span>T. Williams</span><span>3</span><span>9</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p style="margin-top:8px"><strong>Recommended</strong> — handles many sections cleanly, role differences easy to show by hiding sidebar items</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Top Navigation</h3>
+      <p>Horizontal nav bar across the top, full-width content below. Simpler feel, works well for fewer sections.</p>
+      <div class="mockup" style="margin-top:12px">
+        <div class="mockup-header">Admin Portal — Top Nav</div>
+        <div class="mockup-body" style="padding:0;min-height:200px">
+          <div style="background:#1e293b;padding:0 16px;display:flex;align-items:center;gap:4px;height:40px;border-radius:8px 8px 0 0">
+            <div style="color:#f1f5f9;font-size:11px;font-weight:700;margin-right:16px">SFL ADMIN</div>
+            <div style="color:#f1f5f9;font-size:11px;padding:4px 10px;background:#334155;border-radius:4px">Leaderboard</div>
+            <div style="color:#94a3b8;font-size:11px;padding:4px 10px">Access Codes</div>
+            <div style="color:#94a3b8;font-size:11px;padding:4px 10px">Fixtures</div>
+            <div style="color:#94a3b8;font-size:11px;padding:4px 10px">Sync</div>
+            <div style="color:#94a3b8;font-size:11px;padding:4px 10px">Alerts</div>
+            <div style="margin-left:auto;color:#64748b;font-size:10px">superadmin ↩</div>
+          </div>
+          <div style="padding:16px;background:#f8fafc;border-radius:0 0 8px 8px">
+            <div style="font-size:13px;font-weight:600;color:#1e293b;margin-bottom:12px">Best &amp; Fairest Leaderboard</div>
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+              <div style="background:#e2e8f0;border-radius:4px;padding:4px 10px;font-size:11px;color:#475569">SFL Community League Senior Men ▾</div>
+              <div style="background:#e2e8f0;border-radius:4px;padding:4px 10px;font-size:11px;color:#475569">Round 3 ▾</div>
+            </div>
+            <div style="background:white;border-radius:4px;border:1px solid #e2e8f0;font-size:11px">
+              <div style="display:grid;grid-template-columns:32px 1fr 80px 80px;padding:6px 10px;background:#f1f5f9;font-weight:600;color:#475569">#<span>Player</span><span>Round</span><span>Total</span></div>
+              <div style="display:grid;grid-template-columns:32px 1fr 80px 80px;padding:6px 10px;border-top:1px solid #e2e8f0;color:#1e293b">1<span>J. Smith</span><span>5</span><span>14</span></div>
+              <div style="display:grid;grid-template-columns:32px 1fr 80px 80px;padding:6px 10px;border-top:1px solid #e2e8f0;color:#1e293b">2<span>M. Jones</span><span>4</span><span>11</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p style="margin-top:8px">Cleaner for fewer sections, but nav gets cramped as features grow</p>
+    </div>
+  </div>
+
+</div>

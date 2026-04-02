@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import styles from "./BestAndFairest.module.css";
-import selectStyles from "../components/Select.module.css";
-import Select from "../components/Select";
-import PlayerInput from "../components/PlayerInput";
+import selectStyles from "../../components/Select.module.css";
+import Select from "../../components/Select";
+import PlayerInput from "../../components/PlayerInput";
 import type { GamePlayer } from "@/app/api/game-players/route";
 import { ROUND_OPTIONS } from "@/lib/constants";
 
@@ -107,16 +107,20 @@ export default function BestAndFairestPage() {
       .finally(() => setFixtureLoading(false));
   }, [grade, homeTeam, round]);
 
-  // ── Fetch game players from DB/PlayHQ once fixture is resolved ───────────
+  // ── Fetch game players from DB/PlayHQ once fixture + both teams are resolved ──
   useEffect(() => {
-    if (!fixtureGameId || !homeTeam) { setGamePlayers([]); return; }
+    if (!fixtureGameId || !homeTeam || !opposition) { setGamePlayers([]); return; }
     setPlayersLoading(true);
-    fetch(`/api/game-players?gameId=${encodeURIComponent(fixtureGameId)}&teamName=${encodeURIComponent(homeTeam)}`)
-      .then((r) => r.json())
-      .then((data: { players: GamePlayer[] }) => setGamePlayers(data.players ?? []))
+    Promise.all([
+      fetch(`/api/game-players?gameId=${encodeURIComponent(fixtureGameId)}&teamName=${encodeURIComponent(homeTeam)}`).then((r) => r.json()),
+      fetch(`/api/game-players?gameId=${encodeURIComponent(fixtureGameId)}&teamName=${encodeURIComponent(opposition)}`).then((r) => r.json()),
+    ])
+      .then(([homeData, awayData]: [{ players: GamePlayer[] }, { players: GamePlayer[] }]) => {
+        setGamePlayers([...(homeData.players ?? []), ...(awayData.players ?? [])]);
+      })
       .catch(() => setGamePlayers([]))
       .finally(() => setPlayersLoading(false));
-  }, [fixtureGameId, homeTeam]);
+  }, [fixtureGameId, homeTeam, opposition]);
 
   // ── Derived lists ─────────────────────────────────────────────────────────
   const currentLeague    = leagueData.find((l) => l.name === competition);
@@ -155,6 +159,8 @@ export default function BestAndFairestPage() {
     setFixtureFound(null);
   }
 
+  const emptyPlayers = () => Array.from({ length: 5 }, () => ({ number: "", name: "" }));
+
   function handleGradeChange(g: string) {
     setGrade(g);
     setHomeTeam("");
@@ -162,6 +168,7 @@ export default function BestAndFairestPage() {
     setFixtureFound(null);
     setFixtureGameId(null);
     setGamePlayers([]);
+    setPlayers(emptyPlayers());
   }
 
   function handleRoundChange(r: string) {
@@ -170,6 +177,7 @@ export default function BestAndFairestPage() {
     setFixtureFound(null);
     setFixtureGameId(null);
     setGamePlayers([]);
+    setPlayers(emptyPlayers());
   }
 
   function handleHomeTeamChange(t: string) {
@@ -178,6 +186,12 @@ export default function BestAndFairestPage() {
     setFixtureFound(null);
     setFixtureGameId(null);
     setGamePlayers([]);
+    setPlayers(emptyPlayers());
+  }
+
+  function handleOppositionChange(t: string) {
+    setOpposition(t);
+    setPlayers(emptyPlayers());
   }
 
   function updatePlayer(idx: number, field: "number" | "name", value: string) {
@@ -424,7 +438,7 @@ export default function BestAndFairestPage() {
                 <Select
                   id="opposition"
                   value={opposition}
-                  onChange={setOpposition}
+                  onChange={handleOppositionChange}
                   options={oppositionTeams}
                   required
                 />
@@ -437,9 +451,9 @@ export default function BestAndFairestPage() {
             <div className={styles.sectionTitle}>Player Votes</div>
             <p className={styles.sectionHint}>
               {gamePlayers.length > 0
-                ? "Type a jumper number or name to search the team list."
+                ? "Type a jumper number or name to search players from both teams."
                 : playersLoading
-                ? "Loading team players…"
+                ? "Loading players…"
                 : "Enter the player number and name for each vote position."}
             </p>
             <div className={styles.tableWrap}>

@@ -1,39 +1,46 @@
-.shell { display: flex; min-height: 100vh; }
+
+.brand {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 0 18px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.nav { display: flex; flex-direction: column; padding: 12px 0; flex: 1; overflow: hidden; }
+.navLink {
+  color: var(--muted);
+  font-size: 14px;
+  padding: 10px 18px;
+  text-decoration: none;
+  border-radius: 0;
+  transition: color 0.15s, background 0.15s;
+}
+.navLink:hover { color: var(--text); background: var(--panel); }
+.navLinkActive { color: var(--text) !important; background: rgba(124,92,255,.14) !important; border-left: 3px solid var(--accent); padding-left: 15px; font-weight: 600; }
+.footer { padding: 16px 18px; border-top: 1px solid var(--border); flex-shrink: 0; }
+.username { display: block; color: var(--text); font-size: 13px; font-weight: 600; }
+.role { display: block; color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+.signOut {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.signOut:hover { color: var(--text); border-color: var(--muted); }
+.main { flex: 1; padding: 28px 32px; overflow-y: auto; }
+.shell { display: flex; position: fixed; top: 56px; left: 0; width: 100vw; height: calc(100vh - 56px); overflow: hidden; z-index: 10; }
 .sidebar {
-  width: 200px;
+  width: 220px;
   flex-shrink: 0;
-  background: #1e293b;
+  background: rgba(255,255,255,.04);
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   padding: 20px 0;
+  overflow: hidden;
 }
-.brand {
-  color: #f1f5f9;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  padding: 0 16px 20px;
-  border-bottom: 1px solid #334155;
-}
-.nav { display: flex; flex-direction: column; padding: 12px 0; flex: 1; }
-.navLink {
-  color: #94a3b8;
-  font-size: 13px;
-  padding: 8px 16px;
-  text-decoration: none;
-  transition: color 0.15s, background 0.15s;
-}
-.navLink:hover { color: #f1f5f9; background: #334155; }
-.footer { padding: 16px; border-top: 1px solid #334155; }
-.username { display: block; color: #f1f5f9; font-size: 12px; font-weight: 600; }
-.role { display: block; color: #64748b; font-size: 11px; margin-bottom: 10px; }
-.signOut {
-  background: none;
-  border: 1px solid #475569;
-  color: #94a3b8;
-  font-size: 11px;
-  padding: 4px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-.main { flex: 1; background: #f8fafc; padding: 28px 32px; overflow-y: auto; }

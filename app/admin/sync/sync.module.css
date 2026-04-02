@@ -1,5 +1,10 @@
-.title { font-size: 20px; font-weight: 700; color: #1e293b; margin: 0 0 8px; }
-.hint  { color: #64748b; font-size: 14px; margin: 0 0 20px; }
-.btn   { background: #1e293b; color: white; border: none; border-radius: 6px; padding: 10px 20px; font-size: 14px; font-weight: 600; cursor: pointer; }
-.btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.log   { margin-top: 24px; background: #1e293b; color: #94a3b8; font-size: 12px; padding: 16px; border-radius: 8px; white-space: pre-wrap; line-height: 1.6; max-height: 500px; overflow-y: auto; }
+.title { font-size: 20px; font-weight: 700; color: var(--text); margin: 0 0 8px; }
+.hint  { color: var(--muted); font-size: 14px; margin: 0 0 20px; }
+.btn   { background: var(--accent); color: white; border: none; border-radius: 8px; padding: 10px 24px; font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
+.btn:hover { opacity: 0.88; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.meta  { margin-top: 14px; font-size: 13px; color: var(--muted); }
+.statusDone    { color: var(--accent2); font-weight: 600; }
+.statusErr     { color: var(--danger); font-weight: 600; }
+.statusRunning { color: var(--accent); font-weight: 600; }
+.log   { margin-top: 12px; background: rgba(0,0,0,.35); color: var(--muted); font-size: 12px; padding: 16px; border-radius: 10px; border: 1px solid var(--border); white-space: pre-wrap; line-height: 1.6; max-height: 500px; overflow-y: auto; }

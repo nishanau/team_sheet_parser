@@ -1,0 +1,57 @@
+.title    { font-size: 20px; font-weight: 700; color: var(--text); margin: 0 0 20px; }
+
+/* ── Table ───────────────────────────────────────────────────────────────── */
+.table    { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: 10px; overflow: hidden; border: 1px solid var(--border); margin-bottom: 32px; }
+.th       { background: var(--panel2); padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--border); }
+.tr:hover { background: var(--panel2); }
+.td       { padding: 10px 14px; font-size: 13px; color: var(--text); border-bottom: 1px solid var(--border); }
+.actions  { display: flex; gap: 6px; }
+.btn      { border: 1px solid var(--border); background: transparent; color: var(--muted); font-size: 11px; padding: 4px 10px; border-radius: 6px; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.btn:hover { background: var(--panel2); color: var(--text); }
+.btnDanger { border-color: rgba(239,68,68,.4); color: var(--danger); }
+.btnDanger:hover { background: rgba(239,68,68,.1); }
+
+/* ── Form card ───────────────────────────────────────────────────────────── */
+.formCard {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 440px;
+}
+.formTitle { font-size: 16px; font-weight: 700; color: var(--text); margin: 0 0 18px; }
+.form      { display: flex; flex-direction: column; gap: 14px; }
+.field     { display: flex; flex-direction: column; gap: 5px; }
+.label     { font-size: 12px; font-weight: 600; color: var(--muted); }
+.input, .select {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--panel2);
+  outline: none;
+}
+.input:focus, .select:focus { border-color: var(--accent); }
+.select option { background: #1e293b; }
+.hint      { font-size: 12px; color: var(--muted); margin: 0; }
+
+/* ── Form row ────────────────────────────────────────────────────────────── */
+.formRow   { display: flex; gap: 10px; margin-top: 4px; }
+.submitBtn {
+  flex: 1; background: var(--accent); color: white; border: none;
+  border-radius: 8px; padding: 9px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: opacity 0.15s;
+}
+.submitBtn:hover { opacity: 0.88; }
+.submitBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+.cancelBtn {
+  background: transparent; color: var(--muted); border: 1px solid var(--border);
+  border-radius: 8px; padding: 9px 16px; font-size: 13px; cursor: pointer;
+  transition: color 0.15s;
+}
+.cancelBtn:hover { color: var(--text); }
+
+/* ── Feedback ─────────────────────────────────────────────────────────────── */
+.error   { color: var(--danger); font-size: 12px; margin: 0; }
+.success { color: var(--accent2); font-size: 12px; margin: 0; }

@@ -51,3 +51,5 @@ playhq_scraper.py
 playhq.db
 local.db-wal
 local.db-shm
+script.py
+flagged_pri*

@@ -6,7 +6,7 @@ import Select from "@/app/components/Select";
 import { ROUND_OPTIONS, GRADE_MAP } from "@/lib/constants";
 import styles from "./leaderboard.module.css";
 
-type Row = {
+type RoundRow = {
   rank: number;
   playerName: string;
   playerNumber: string | null;
@@ -14,6 +14,19 @@ type Row = {
   roundVotes: number;
   totalVotes: number;
 };
+
+type PivotRow = {
+  rank: number;
+  playerName: string;
+  playerNumber: string | null;
+  team: string;
+  roundBreakdown: Record<string, number>;
+  totalVotes: number;
+};
+
+type ApiResponse =
+  | { mode: "round"; rows: RoundRow[]; rounds: string[] }
+  | { mode: "pivot"; rows: PivotRow[]; rounds: string[] };
 
 const COMPETITIONS = ["SFL", "STJFL"];
 
@@ -24,15 +37,28 @@ function allGradesFor(competition: string) {
     .filter((g) => g.length > 0);
 }
 
-function exportCSV(rows: Row[], filename: string) {
+function exportRoundCSV(rows: RoundRow[], grade: string, round: string) {
   const headers = "Rank,Player,Number,Team,Round Votes,Total Votes";
   const lines = rows.map(
-    (r) =>
-      `${r.rank},"${r.playerName}","${r.playerNumber ?? ""}","${r.team}",${r.roundVotes},${r.totalVotes}`
+    (r) => `${r.rank},"${r.playerName}","${r.playerNumber ?? ""}","${r.team}",${r.roundVotes},${r.totalVotes}`
   );
   const blob = new Blob([[headers, ...lines].join("\n")], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
-  const a = Object.assign(document.createElement("a"), { href: url, download: filename });
+  const a = Object.assign(document.createElement("a"), { href: url, download: `leaderboard-${grade}-${round}.csv` });
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportPivotCSV(rows: PivotRow[], rounds: string[], grade: string) {
+  const roundCols = rounds.join(",");
+  const headers = `Rank,Player,Number,Team,${roundCols},Total`;
+  const lines = rows.map((r) => {
+    const roundVals = rounds.map((rnd) => r.roundBreakdown[rnd] ?? 0).join(",");
+    return `${r.rank},"${r.playerName}","${r.playerNumber ?? ""}","${r.team}",${roundVals},${r.totalVotes}`;
+  });
+  const blob = new Blob([[headers, ...lines].join("\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement("a"), { href: url, download: `leaderboard-${grade}-all.csv` });
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -45,7 +71,7 @@ export default function LeaderboardPage() {
   const [competition, setCompetition] = useState("SFL");
   const [grade, setGrade] = useState("");
   const [round, setRound] = useState("all");
-  const [rows, setRows] = useState<Row[]>([]);
+  const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
   const grades = allGradesFor(competition);
@@ -55,24 +81,29 @@ export default function LeaderboardPage() {
   }, [competition]);
 
   useEffect(() => {
+    if (!grade) return;
     const params = new URLSearchParams({ type: tab, competition, round });
     if (grade) params.set("grade", grade);
     setLoading(true);
     fetch(`/api/admin/leaderboard?${params}`)
       .then((r) => r.json())
-      .then(setRows)
+      .then(setData)
       .finally(() => setLoading(false));
   }, [tab, competition, grade, round]);
+
+  const isEmpty = !data || data.rows.length === 0;
+
+  function handleExport() {
+    if (!data || isEmpty) return;
+    if (data.mode === "pivot") exportPivotCSV(data.rows, data.rounds, grade);
+    else exportRoundCSV(data.rows, grade, round);
+  }
 
   return (
     <div>
       <div className={styles.header}>
         <h1 className={styles.title}>Leaderboard</h1>
-        <button
-          className={styles.exportBtn}
-          onClick={() => exportCSV(rows, `leaderboard-${grade}-${round}.csv`)}
-          disabled={rows.length === 0}
-        >
+        <button className={styles.exportBtn} onClick={handleExport} disabled={isEmpty}>
           Export CSV
         </button>
       </div>
@@ -104,9 +135,46 @@ export default function LeaderboardPage() {
 
       {loading ? (
         <p className={styles.hint}>Loading…</p>
-      ) : rows.length === 0 ? (
+      ) : isEmpty ? (
         <p className={styles.hint}>No votes found for the selected filters.</p>
+      ) : data.mode === "pivot" ? (
+        /* ── Pivot table: All rounds ─────────────────────────────── */
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th className={styles.th}>#</th>
+                <th className={styles.th}>Player</th>
+                <th className={styles.th}>No.</th>
+                <th className={styles.th}>Team</th>
+                {data.rounds.map((r) => (
+                  <th key={r} className={`${styles.th} ${styles.thRound}`}>{r}</th>
+                ))}
+                <th className={styles.th}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rows.map((r) => (
+                <tr key={`${r.playerName}-${r.playerNumber}-${r.team}`} className={styles.tr}>
+                  <td className={styles.td}>{r.rank}</td>
+                  <td className={styles.td}>{r.playerName}</td>
+                  <td className={styles.td}>{r.playerNumber ?? "—"}</td>
+                  <td className={styles.td}>{r.team}</td>
+                  {data.rounds.map((rnd) => (
+                    <td key={rnd} className={`${styles.td} ${styles.tdCenter}`}>
+                      {r.roundBreakdown[rnd] ?? "—"}
+                    </td>
+                  ))}
+                  <td className={`${styles.td} ${styles.tdCenter}`}>
+                    <strong>{r.totalVotes}</strong>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
+        /* ── Single round table ──────────────────────────────────── */
         <table className={styles.table}>
           <thead>
             <tr>
@@ -114,19 +182,19 @@ export default function LeaderboardPage() {
               <th className={styles.th}>Player</th>
               <th className={styles.th}>No.</th>
               <th className={styles.th}>Team</th>
-              <th className={styles.th}>Round</th>
+              <th className={styles.th}>Round Votes</th>
               <th className={styles.th}>Total</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={`${r.playerName}-${r.team}`} className={styles.tr}>
+            {data.rows.map((r) => (
+              <tr key={`${r.playerName}-${r.playerNumber}-${r.team}`} className={styles.tr}>
                 <td className={styles.td}>{r.rank}</td>
                 <td className={styles.td}>{r.playerName}</td>
                 <td className={styles.td}>{r.playerNumber ?? "—"}</td>
                 <td className={styles.td}>{r.team}</td>
-                <td className={styles.td}>{r.roundVotes}</td>
-                <td className={styles.td}>
+                <td className={`${styles.td} ${styles.tdCenter}`}>{r.roundVotes || "—"}</td>
+                <td className={`${styles.td} ${styles.tdCenter}`}>
                   <strong>{r.totalVotes}</strong>
                 </td>
               </tr>
@@ -137,3 +205,4 @@ export default function LeaderboardPage() {
     </div>
   );
 }
+

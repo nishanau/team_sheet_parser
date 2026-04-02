@@ -43,6 +43,11 @@ export default function Nav() {
           ))}
         </ul>
 
+        {/* Admin link — desktop */}
+        <Link href="/admin/login" className={styles.adminLink}>
+          Admin
+        </Link>
+
         {/* Mobile hamburger */}
         <button
           className={styles.hamburger}
@@ -67,6 +72,9 @@ export default function Nav() {
             {label}
           </Link>
         ))}
+        <Link href="/admin/login" className={styles.drawerAdminLink} onClick={() => setOpen(false)}>
+          Admin
+        </Link>
       </div>
     </>
   );

@@ -1,9 +1,9 @@
-.title  { font-size: 20px; font-weight: 700; color: #1e293b; margin: 0 0 20px; }
-.empty  { color: #64748b; font-size: 14px; }
-.table  { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
-.th     { background: #f1f5f9; padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0; }
-.tr     { border-bottom: 1px solid #f1f5f9; }
-.tr:hover { background: #f8fafc; }
-.td     { padding: 10px 14px; font-size: 13px; color: #1e293b; }
-.badgeBf  { background: #dbeafe; color: #1d4ed8; font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 600; }
-.badgeCv  { background: #fef9c3; color: #a16207; font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 600; }
+.title  { font-size: 20px; font-weight: 700; color: var(--text); margin: 0 0 20px; }
+.empty  { color: var(--muted); font-size: 14px; }
+.table  { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+.th     { background: var(--panel2); padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--border); }
+.tr     { border-bottom: 1px solid var(--border); }
+.tr:hover { background: var(--panel2); }
+.td     { padding: 10px 14px; font-size: 13px; color: var(--text); }
+.badgeBf  { background: rgba(99,102,241,.18); color: #a5b4fc; font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 600; }
+.badgeCv  { background: rgba(234,179,8,.15);  color: #fde047; font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 600; }

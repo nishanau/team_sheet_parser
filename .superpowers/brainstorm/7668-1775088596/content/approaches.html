@@ -1,0 +1,43 @@
+<h2>Admin Portal — 3 Approaches</h2>
+<p class="subtitle">Pick the architecture that fits best. Each affects how auth, routing, and roles are handled.</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>NextAuth.js + Credentials</h3>
+      <p>Industry-standard Next.js auth library. Handles sessions, CSRF, cookies out of the box. Credentials provider for username/password now — Google/GitHub OAuth later with minimal changes. Admin routes protected by Next.js middleware.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>OAuth-ready for future</li><li>Less code to maintain</li><li>Session management handled</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Extra dependency</li><li>Some NextAuth config overhead</li></ul></div>
+      </div>
+      <p><strong>Recommended</strong></p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Custom JWT + Middleware</h3>
+      <p>Roll your own login endpoint that issues a signed JWT stored in an httpOnly cookie. Next.js middleware verifies the token on every admin request. No third-party auth library.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>No extra dependencies</li><li>Full control over token shape</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>More code to write and maintain</li><li>OAuth requires significant extra work later</li><li>Easy to get CSRF/session wrong</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Separate Admin App</h3>
+      <p>Build the admin portal as a completely separate Next.js app or route group with its own auth, deployed independently. Main app stays unchanged.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Cleanest separation</li><li>Zero risk of admin code affecting public pages</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Shares the same DB anyway</li><li>Two repos/deployments to manage</li><li>Overkill for this scale</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+</div>

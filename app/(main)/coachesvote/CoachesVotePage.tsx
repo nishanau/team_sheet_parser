@@ -3,7 +3,7 @@
 import { useState, useEffect, startTransition } from "react";
 import styles from "../bestandfairest/BestAndFairest.module.css";
 import matchStyles from "./CoachesVote.module.css";
-import PlayerInput from "../components/PlayerInput";
+import PlayerInput from "../../components/PlayerInput";
 import type { GamePlayer } from "@/app/api/game-players/route";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -198,6 +198,11 @@ function CoachesVoteForm({
       .catch(() => setFixturesError("Failed to load fixtures. Please refresh."))
       .finally(() => setFixturesLoading(false));
   }, [grade, coachTeam]);
+
+  // ── Reset vote entries whenever the selected fixture changes ─────────────
+  useEffect(() => {
+    setPlayers(Array.from({ length: 5 }, () => ({ number: "", name: "" })));
+  }, [selectedFixture]);
 
   // ── Fetch players when a fixture is selected ──────────────────────────────
   useEffect(() => {

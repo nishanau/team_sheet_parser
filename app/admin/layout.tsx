@@ -1,14 +1,16 @@
 import { auth } from "@/auth";
-import Link from "next/link";
 import { signOut } from "@/auth";
 import { SessionProvider } from "next-auth/react";
+import AdminNav from "./AdminNav";
+import Nav from "../components/Nav";
 import styles from "./layout.module.css";
 
 const NAV = [
   { href: "/admin/leaderboard",  label: "Leaderboard",  superadminOnly: false },
-  { href: "/admin/access-codes", label: "Access Codes", superadminOnly: false },
+  { href: "/admin/access-codes", label: "Access Codes", superadminOnly: true  },
   { href: "/admin/alerts",       label: "Alerts",       superadminOnly: false },
   { href: "/admin/fixtures",     label: "Fixtures",     superadminOnly: true  },
+  { href: "/admin/users",        label: "Users",        superadminOnly: true  },
   { href: "/admin/sync",         label: "Sync",         superadminOnly: true  },
 ];
 
@@ -17,21 +19,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   // No session: render children only (login page). Middleware handles redirect
   // for all other /admin/** routes.
-  if (!session) return <>{children}</>;
+  if (!session) return <SessionProvider><Nav />{children}</SessionProvider>;
 
   const isSuperadmin = session.user.role === "superadmin";
+  const navItems = NAV.filter((n) => !n.superadminOnly || isSuperadmin);
 
   return (
+    <>
+    <Nav />
     <div className={styles.shell}>
       <aside className={styles.sidebar}>
         <div className={styles.brand}>SFL Admin</div>
-        <nav className={styles.nav}>
-          {NAV.filter((n) => !n.superadminOnly || isSuperadmin).map((n) => (
-            <Link key={n.href} href={n.href} className={styles.navLink}>
-              {n.label}
-            </Link>
-          ))}
-        </nav>
+        <AdminNav items={navItems} />
         <div className={styles.footer}>
           <span className={styles.username}>{session.user.name}</span>
           <span className={styles.role}>{session.user.role}</span>
@@ -44,5 +43,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <main className={styles.main}>{children}</main>
       </SessionProvider>
     </div>
+    </>
   );
 }

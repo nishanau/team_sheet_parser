@@ -4,8 +4,10 @@ import { db } from "@/lib/db";
 import { adminUsers } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import { authConfig } from "./auth.config";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
   providers: [
     Credentials({
       credentials: {
@@ -35,21 +37,4 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
-  callbacks: {
-    jwt({ token, user }) {
-      if (user) {
-        token.role     = (user as { role: string }).role;
-        token.clubId   = (user as { clubId: number | null }).clubId;
-        token.leagueId = (user as { leagueId: number | null }).leagueId;
-      }
-      return token;
-    },
-    session({ session, token }) {
-      session.user.role     = token.role as string;
-      session.user.clubId   = token.clubId as number | null;
-      session.user.leagueId = token.leagueId as number | null;
-      return session;
-    },
-  },
-  pages: { signIn: "/admin/login" },
 });

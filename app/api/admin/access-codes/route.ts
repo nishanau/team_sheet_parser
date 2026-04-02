@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { teamAccessCodes, teams } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 function genCode(): string {
@@ -24,15 +24,14 @@ export async function GET(req: NextRequest) {
       gradeName: teamAccessCodes.gradeName,
       code:      teamAccessCodes.code,
       active:    teamAccessCodes.active,
-      clubId:    teams.clubId,
     })
     .from(teamAccessCodes)
-    .leftJoin(teams, and(eq(teams.name, teamAccessCodes.teamName), eq(teams.gradeName, teamAccessCodes.gradeName)))
     .orderBy(teamAccessCodes.gradeName, teamAccessCodes.teamName);
 
   if (session.user.role === "club_admin") {
-    return NextResponse.json(rows.filter((r) => r.clubId === session.user.clubId));
+    return NextResponse.json([], { status: 403 });
   }
+
   return NextResponse.json(rows);
 }
 
@@ -45,13 +44,18 @@ export async function PATCH(req: NextRequest) {
 
   // Scope check for club_admin
   if (session.user.role === "club_admin") {
-    const [row] = await db
-      .select({ clubId: teams.clubId })
+    const [codeRow] = await db
+      .select({ teamName: teamAccessCodes.teamName })
       .from(teamAccessCodes)
-      .leftJoin(teams, and(eq(teams.name, teamAccessCodes.teamName), eq(teams.gradeName, teamAccessCodes.gradeName)))
       .where(eq(teamAccessCodes.id, id))
       .limit(1);
-    if (row?.clubId !== session.user.clubId) {
+    if (!codeRow) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const [teamRow] = await db
+      .select({ clubId: teams.clubId })
+      .from(teams)
+      .where(eq(teams.name, codeRow.teamName))
+      .limit(1);
+    if (teamRow?.clubId !== session.user.clubId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   }

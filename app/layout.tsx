@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Nav from "./components/Nav";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -19,10 +18,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>
-        <Nav />
-        <div style={{ paddingTop: "72px", paddingLeft: "28px", paddingRight: "28px", paddingBottom: "28px" }}>{children}</div>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
