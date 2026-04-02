@@ -43,6 +43,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# worktrees
+.worktrees/
+
 #custom files
 playhq_scraper.py
 playhq.db
