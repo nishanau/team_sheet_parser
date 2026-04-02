@@ -1,0 +1,13 @@
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.title  { font-size: 20px; font-weight: 700; color: #1e293b; margin: 0; }
+.exportBtn { background: #1e293b; color: white; border: none; border-radius: 6px; padding: 7px 14px; font-size: 12px; cursor: pointer; }
+.exportBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; }
+.tab { background: none; border: none; padding: 8px 16px; font-size: 13px; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+.tabActive { color: #1e293b; font-weight: 600; border-bottom-color: #1e293b; }
+.filters { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+.hint    { color: #64748b; font-size: 14px; }
+.table   { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.th      { background: #f1f5f9; padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0; }
+.tr:hover { background: #f8fafc; }
+.td      { padding: 10px 14px; font-size: 13px; color: #1e293b; border-bottom: 1px solid #f1f5f9; }

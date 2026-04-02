@@ -1,0 +1,14 @@
+.title    { font-size: 20px; font-weight: 700; color: #1e293b; margin: 0 0 20px; }
+.table    { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.th       { background: #f1f5f9; padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0; }
+.tr       { border-bottom: 1px solid #f1f5f9; }
+.tr:hover { background: #f8fafc; }
+.inactive { opacity: 0.5; }
+.td       { padding: 10px 14px; font-size: 13px; color: #1e293b; }
+.code     { font-family: monospace; font-size: 13px; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }
+.badgeActive   { background: #dcfce7; color: #15803d; font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 600; }
+.badgeInactive { background: #f1f5f9; color: #64748b; font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 600; }
+.actions  { display: flex; gap: 6px; }
+.btn      { border: 1px solid #e2e8f0; background: white; color: #475569; font-size: 11px; padding: 4px 10px; border-radius: 4px; cursor: pointer; }
+.btn:hover { background: #f1f5f9; }
+.btnDanger { border-color: #fecaca; color: #dc2626; }
