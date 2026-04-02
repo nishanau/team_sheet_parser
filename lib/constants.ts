@@ -68,3 +68,15 @@ export function ageGroupForGrade(competition: string, gradeName: string): string
   }
   return null;
 }
+
+// ─── Allowed SFL grades (used by sync and admin fixtures filter) ───────────
+export const ALLOWED_GRADES = new Set([
+  "SFL Premier League Senior Men",
+  "SFL Community League Senior Men",
+  "SFL Premier League Reserves Men",
+  "SFL Community League Reserves Men",
+  "SFL Premier League U18 Boys",
+  "SFL Community League U18 Boys",
+  "SFL Premier League Senior Women",
+  "SFL Community League Senior Women",
+]);

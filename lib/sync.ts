@@ -1,5 +1,7 @@
 import { createClient } from "@libsql/client";
 
+import { ALLOWED_GRADES } from "@/lib/constants";
+
 // ─── Config ───────────────────────────────────────────────────────────────────
 const PLAYHQ_API = "https://api.playhq.com/graphql";
 const PLAYHQ_HEADERS = {
@@ -14,17 +16,6 @@ const PLAYHQ_HEADERS = {
 export const SFL_ORG_ID = "cc453fd4";
 
 export const STJFL_ORG_ID = "506fd6f4";
-
-export const ALLOWED_GRADES = new Set([
-  "SFL Premier League Senior Men",
-  "SFL Community League Senior Men",
-  "SFL Premier League Reserves Men",
-  "SFL Community League Reserves Men",
-  "SFL Premier League U18 Boys",
-  "SFL Community League U18 Boys",
-  "SFL Premier League Senior Women",
-  "SFL Community League Senior Women",
-]);
 
 // ─── GraphQL Queries ──────────────────────────────────────────────────────────
 const Q_COMPETITIONS = `
