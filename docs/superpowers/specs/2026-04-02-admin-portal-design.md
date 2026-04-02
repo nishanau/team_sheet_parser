@@ -89,13 +89,33 @@ ALTER TABLE teams ADD COLUMN club_id INTEGER REFERENCES clubs(id);
 
 Team names alone are not a reliable way to extract parent clubs — "Port Senior Women" and "Cygnet Senior Men" belong to the same club, which name-stripping cannot detect.
 
-**Long-term approach:** PlayHQ exposes `discoverTeams(filter: { seasonID, organisationID })` where `organisationID` is a club's org ID. Once the query to list all child organisations under SFL is identified, the cron sync will:
+**Full automation approach** — three PlayHQ queries chained together:
 
-1. Fetch all club organisations under SFL
-2. Upsert into `clubs` by `playhq_id`
-3. For each club, fetch their teams via `discoverTeams` and set `teams.club_id`
+**Step 1 — Search for all clubs** (run once per league):
+```graphql
+search(filter: {
+  meta: { limit: 30, page: 1 },
+  organisation: { query: "(sfl) tas", types: ["CLUB"], sports: ["AFL"] }
+})
+```
+Returns each club with `id`, `name`, and `routingCode`. The `routingCode` is the `organisationId` used in subsequent queries. Repeat with `"(stjfl) tas"` for STJFL clubs.
 
-**Unblocking now:** A one-time seed script manually maps known clubs to their teams. This populates `clubs` and sets `teams.club_id` immediately, allowing club admin accounts to be used. When the sync is extended with the PlayHQ club query, it overwrites the manual data — `playhq_id` is used for upsert so no duplicates are created.
+**Step 2 — Get each club's teams for the season:**
+```graphql
+discoverOrganisationTeams(
+  seasonCode: $seasonId,
+  seasonId: $seasonId,
+  organisationCode: $routingCode,
+  organisationId: $routingCode
+)
+```
+Returns `discoverTeams[]` with team `name` and `grade.name`, and `discoverOrganisation.name` for the club name. Filter results by `ALLOWED_GRADES` to exclude teams from other seasons or competitions.
+
+**Step 3 — Upsert into DB:**
+- Upsert `clubs` by `playhq_id = routingCode` (name comes from `discoverOrganisation.name`)
+- For each team, match against `teams` table by `(name, grade_name)` and set `teams.club_id`
+
+This runs as an additional step in the cron sync, after the existing fixtures/teams sync. The `ALLOWED_GRADES` filter ensures teams outside the tracked grades are ignored automatically.
 
 ---
 
@@ -146,8 +166,8 @@ Columns: vote type, grade, round, team, submission count, dates submitted.
 
 | Item | Status | Notes |
 |---|---|---|
-| PlayHQ club org query | Pending | Needed to automate club→team linking in sync; manual seed unblocks |
-| `clubs` table seeded | Blocked by above (manual workaround available) | Required for club admin accounts to work |
+| PlayHQ club org query | Resolved | `search` + `discoverOrganisationTeams` chain is fully defined |
+| `clubs` table seeded | Pending | Populated by cron sync using the queries above |
 | NextAuth.js added | Pending | New dependency — `next-auth` + `bcryptjs` |
 | Migration for `clubs`, `admin_users`, `teams.club_id` | Pending | New migration via drizzle-kit |
 
