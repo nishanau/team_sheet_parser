@@ -58,7 +58,7 @@ A club admin account is bound to a `(club_id, league_id)` pair. If a club operat
 CREATE TABLE clubs (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   name       TEXT    NOT NULL UNIQUE,
-  playhq_id  TEXT    UNIQUE   -- PlayHQ club organisation ID
+  playhq_id  TEXT    UNIQUE   -- PlayHQ club organisation ID or routingCode when searching
 );
 ```
 
@@ -98,7 +98,7 @@ search(filter: {
   organisation: { query: "(sfl) tas", types: ["CLUB"], sports: ["AFL"] }
 })
 ```
-Returns each club with `id`, `name`, and `routingCode`. The `routingCode` is the `organisationId` used in subsequent queries. Repeat with `"(stjfl) tas"` for STJFL clubs.
+Returns each club with `id`, `name`, and `routingCode`. The `routingCode` is the `organisationId` used in subsequent queries. Repeat with `"(stjfl)"` for STJFL clubs.
 
 **Step 2 — Get each club's teams for the season:**
 ```graphql
@@ -115,7 +115,9 @@ Returns `discoverTeams[]` with team `name` and `grade.name`, and `discoverOrgani
 - Upsert `clubs` by `playhq_id = routingCode` (name comes from `discoverOrganisation.name`)
 - For each team, match against `teams` table by `(name, grade_name)` and set `teams.club_id`
 
-This runs as an additional step in the cron sync, after the existing fixtures/teams sync. The `ALLOWED_GRADES` filter ensures teams outside the tracked grades are ignored automatically.
+This runs as Steps 6–7 of the cron sync, immediately after teams are reinserted (Steps 1–5). Running it in the same sync pass ensures `teams.club_id` is never lost when the sync deletes and reinserts team rows.
+
+Both SFL (`"(sfl) tas"`) and STJFL (`"(stjfl)"`) clubs are searched and synced. Each league requires its own active season ID — SFL's is fetched as part of the existing sync; STJFL's season ID is fetched the same way (using the STJFL org ID once known). If no active season is found for a league, the team-linking step for that league is skipped gracefully, but the clubs themselves are still upserted into the `clubs` table so admin accounts can be created. STJFL fixture/grade data may be sparse on PlayHQ initially but the structure handles it without code changes as data becomes available.
 
 ---
 
@@ -123,8 +125,8 @@ This runs as an additional step in the cron sync, after the existing fixtures/te
 
 ### Leaderboard (`/admin/leaderboard`)
 
-**Best & Fairest tab** — available to both roles.
-- Filters: grade (dropdown), round (single round or "All Rounds" for season aggregate)
+**Best & Fairest tab** — available to both roles. Covers both SFL and STJFL competitions.
+- Filters: competition (SFL/STJFL), grade (dropdown scoped to selected competition), round (single round or "All Rounds" for season aggregate)
 - Club admin: results filtered to rows where `home_team` matches one of their club's teams in their league
 - Table: rank, player name, player number, team, round votes, total votes
 - CSV export button downloads the current filtered view
@@ -177,4 +179,5 @@ Columns: vote type, grade, round, team, submission count, dates submitted.
 
 - OAuth login (designed for, not built now)
 - Admin user management UI (admin accounts created via seed script or direct DB insert for now)
-- STJFL data in leaderboards (STJFL teams are hardcoded; no votes flow through the system for them yet)
+- Admin user management UI (admin accounts created via seed script or direct DB insert for now)
+- OAuth login (designed for, not built now)
