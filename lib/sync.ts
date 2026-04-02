@@ -13,7 +13,7 @@ const PLAYHQ_HEADERS = {
 
 export const SFL_ORG_ID = "cc453fd4";
 
-export const STJFL_ORG_ID = "";
+export const STJFL_ORG_ID = "506fd6f4";
 
 export const ALLOWED_GRADES = new Set([
   "SFL Premier League Senior Men",
