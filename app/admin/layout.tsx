@@ -1,5 +1,4 @@
 import { auth } from "@/auth";
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "@/auth";
 import { SessionProvider } from "next-auth/react";
@@ -15,7 +14,11 @@ const NAV = [
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
-  if (!session) redirect("/admin/login");
+
+  // No session: render children only (login page). Middleware handles redirect
+  // for all other /admin/** routes.
+  if (!session) return <>{children}</>;
+
   const isSuperadmin = session.user.role === "superadmin";
 
   return (
