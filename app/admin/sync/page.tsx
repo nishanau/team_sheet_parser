@@ -10,6 +10,7 @@ export default function SyncPage() {
   const [posting, setPosting] = useState(false);
   const logRef                = useRef<HTMLPreElement>(null);
   const pollRef               = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollFailures          = useRef(0);
 
   // Poll /api/admin/sync every second while running
   useEffect(() => {
@@ -17,15 +18,20 @@ export default function SyncPage() {
       try {
         const res  = await fetch("/api/admin/sync");
         const data = await res.json() as SyncState;
+        pollFailures.current = 0;
         setState(data);
-        // Auto-scroll log to bottom
         if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
-        // Stop polling when finished
         if (data.status !== "running" && pollRef.current) {
           clearInterval(pollRef.current);
           pollRef.current = null;
         }
-      } catch { /* network blip — keep polling */ }
+      } catch {
+        pollFailures.current += 1;
+        if (pollFailures.current >= 5) {
+          setState((prev) => ({ ...prev, status: "error", log: [...prev.log, "Connection lost. Please refresh."] }));
+          if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+        }
+      }
     }
 
     // Fetch current state on mount (so refreshing the page shows last run)
@@ -38,13 +44,20 @@ export default function SyncPage() {
       try {
         const res  = await fetch("/api/admin/sync");
         const data = await res.json() as SyncState;
+        pollFailures.current = 0;
         setState(data);
         if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
         if (data.status !== "running" && pollRef.current) {
           clearInterval(pollRef.current);
           pollRef.current = null;
         }
-      } catch { /* network blip */ }
+      } catch {
+        pollFailures.current += 1;
+        if (pollFailures.current >= 5) {
+          setState((prev) => ({ ...prev, status: "error", log: [...prev.log, "Connection lost. Please refresh."] }));
+          if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+        }
+      }
     }, 1000);
   }
 
