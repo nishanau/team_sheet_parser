@@ -12,57 +12,37 @@ export default function SyncPage() {
   const pollRef               = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollFailures          = useRef(0);
 
-  // Poll /api/admin/sync every second while running
-  useEffect(() => {
-    async function poll() {
-      try {
-        const res  = await fetch("/api/admin/sync");
-        const data = await res.json() as SyncState;
-        pollFailures.current = 0;
-        setState(data);
-        if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
-        if (data.status !== "running" && pollRef.current) {
-          clearInterval(pollRef.current);
-          pollRef.current = null;
-        }
-      } catch {
-        pollFailures.current += 1;
-        if (pollFailures.current >= 5) {
-          setState((prev) => ({ ...prev, status: "error", log: [...prev.log, "Connection lost. Please refresh."] }));
-          if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-        }
+  async function fetchSyncState() {
+    try {
+      const res  = await fetch("/api/admin/sync");
+      const data = await res.json() as SyncState;
+      pollFailures.current = 0;
+      setState(data);
+      if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+      if (data.status !== "running" && pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    } catch {
+      pollFailures.current += 1;
+      if (pollFailures.current >= 5) {
+        setState((prev) => ({ ...prev, status: "error", log: [...prev.log, "Connection lost. Please refresh."] }));
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
       }
     }
+  }
 
-    // Fetch current state on mount (so refreshing the page shows last run)
-    poll();
-  }, []);
+  // Fetch current state on mount (so refreshing the page shows last run)
+  useEffect(() => { fetchSyncState(); }, []);
 
   function startPolling() {
     if (pollRef.current) return;
-    pollRef.current = setInterval(async () => {
-      try {
-        const res  = await fetch("/api/admin/sync");
-        const data = await res.json() as SyncState;
-        pollFailures.current = 0;
-        setState(data);
-        if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
-        if (data.status !== "running" && pollRef.current) {
-          clearInterval(pollRef.current);
-          pollRef.current = null;
-        }
-      } catch {
-        pollFailures.current += 1;
-        if (pollFailures.current >= 5) {
-          setState((prev) => ({ ...prev, status: "error", log: [...prev.log, "Connection lost. Please refresh."] }));
-          if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-        }
-      }
-    }, 1000);
+    pollRef.current = setInterval(fetchSyncState, 1000);
   }
 
   async function handleSync() {
     setPosting(true);
+    pollFailures.current = 0;
     try {
       const res = await fetch("/api/admin/sync", { method: "POST" });
       if (res.status === 409) {
