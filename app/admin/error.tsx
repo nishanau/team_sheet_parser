@@ -22,6 +22,7 @@ export default function Error({
         An unexpected error occurred on this page.
       </p>
       <button
+        type="button"
         onClick={reset}
         style={{
           alignSelf: "flex-start",
@@ -34,6 +35,8 @@ export default function Error({
           fontWeight: 600,
           cursor: "pointer",
         }}
+        onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 3px rgba(124,92,255,0.18)")}
+        onBlur={(e) => (e.currentTarget.style.boxShadow = "")}
       >
         Try again
       </button>
