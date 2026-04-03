@@ -36,6 +36,7 @@ function checkRateLimit(ip: string): boolean {
 export async function POST(req: NextRequest) {
   const ip = getIp(req);
   if (!checkRateLimit(ip)) {
+    logger.warn("[coaches-vote/verify] rate limit hit", { category: "auth", ip });
     return NextResponse.json(
       { error: "Too many attempts. Please try again in 15 minutes." },
       { status: 429 }
@@ -74,9 +75,11 @@ export async function POST(req: NextRequest) {
       .limit(1);
 
     if (!row) {
+      logger.warn("[coaches-vote/verify] invalid code", { category: "auth" });
       return NextResponse.json({ error: "Invalid access code." }, { status: 401 });
     }
 
+    logger.info("[coaches-vote/verify] code verified", { category: "auth", teamName: row.teamName, gradeName: row.gradeName });
     return NextResponse.json({ teamName: row.teamName, gradeName: row.gradeName });
   } catch (e) {
     logger.error("[coaches-vote/verify] POST failed", { category: "api", error: String(e) });

@@ -101,12 +101,14 @@ export async function GET(req: NextRequest) {
       lastName:     r.lastName,
       profileId:    r.profileId,
     }));
+    logger.debug("[game-players] cache hit", { category: "api", gameId, teamName });
     return NextResponse.json({ players, source: "cache" });
   }
 
   // 2. Fetch from PlayHQ
   let data: Record<string, unknown>;
   try {
+    logger.info("[game-players] PlayHQ fetch", { category: "api", gameId, teamName });
     const res = await fetch(PLAYHQ_API, {
       method:  "POST",
       headers: PLAYHQ_HEADERS,

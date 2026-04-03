@@ -7,6 +7,7 @@ import { logger } from "@/lib/logger";
 
 export async function GET() {
   try {
+    logger.info("[leagues] GET", { category: "api" });
     const allLeagues = await db.select().from(leagues).orderBy(leagues.name);
     const allTeams   = await db.select().from(teams).orderBy(teams.name);
 

@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    logger.info("[fixtures] GET", { category: "api", grade, homeTeam, round: round ?? null });
     const conditions = [
       eq(fixtures.gradeName, grade),
       eq(fixtures.homeTeamName, homeTeam),
