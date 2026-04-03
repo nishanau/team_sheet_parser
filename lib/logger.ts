@@ -2,7 +2,9 @@ type Level = "debug" | "info" | "warn" | "error";
 type Context = Record<string, unknown>;
 
 function send(level: Level, message: string, context: Context = {}): void {
-  const event = { level, message, timestamp: new Date().toISOString(), ...context };
+  // NOTE: logger-controlled fields (level, message, timestamp) intentionally
+  // override any same-named keys in context.
+  const event = { ...context, level, message, timestamp: new Date().toISOString() };
   const fn = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
   fn(JSON.stringify(event));
   if (
@@ -11,7 +13,7 @@ function send(level: Level, message: string, context: Context = {}): void {
     process.env.AXIOM_DATASET
   ) {
     fetch(
-      `https://api.axiom.co/v1/datasets/${process.env.AXIOM_DATASET}/ingest`,
+      `https://api.axiom.co/v1/datasets/${encodeURIComponent(process.env.AXIOM_DATASET)}/ingest`,
       {
         method: "POST",
         headers: {
@@ -20,7 +22,9 @@ function send(level: Level, message: string, context: Context = {}): void {
         },
         body: JSON.stringify([event]),
       }
-    ).catch(() => {});
+    ).catch((err) => {
+      console.warn("logger: axiom ingest failed", err instanceof Error ? err.message : err);
+    });
   }
 }
 
