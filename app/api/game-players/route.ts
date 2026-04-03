@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { teamPlayers, gamePlayersFetched } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
+import { logger } from "@/lib/logger";
 
 const PLAYHQ_API = "https://api.playhq.com/graphql";
 const PLAYHQ_HEADERS = {
@@ -113,7 +114,7 @@ export async function GET(req: NextRequest) {
     });
     data = (await res.json()) as Record<string, unknown>;
   } catch (err) {
-    console.error("[game-players] PlayHQ fetch error:", err);
+    logger.error("[game-players] PlayHQ fetch error", { error: String(err) });
     const rows = await db.select().from(teamPlayers).where(eq(teamPlayers.teamName, teamName));
     const players: GamePlayer[] = rows.map((r: typeof teamPlayers.$inferSelect) => ({
       playerNumber: r.playerNumber,
@@ -204,7 +205,7 @@ export async function GET(req: NextRequest) {
         fetchedAt: new Date().toISOString(),
       });
     } catch (err) {
-      console.error("[game-players] upsert error:", err);
+      logger.error("[game-players] upsert error", { error: String(err) });
     }
   })();
 

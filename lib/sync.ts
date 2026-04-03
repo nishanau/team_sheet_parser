@@ -1,6 +1,7 @@
 import { createClient } from "@libsql/client";
 
 import { ALLOWED_GRADES } from "@/lib/constants";
+import { logger } from "./logger";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const PLAYHQ_API        = "https://api.playhq.com/graphql";
@@ -135,7 +136,7 @@ async function batchedMap<T, R>(
     const settled = await Promise.allSettled(batch.map(fn));
     for (const r of settled) {
       if (r.status === "fulfilled") results.push(r.value);
-      else console.error("[cron] batch item failed:", r.reason);
+      else logger.warn("[sync] batch item failed", { reason: String(r.reason) });
     }
     if (i + batchSize < items.length) await sleep(delayMs);
   }
