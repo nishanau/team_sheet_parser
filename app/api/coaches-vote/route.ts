@@ -175,6 +175,15 @@ export async function POST(req: NextRequest) {
       })
       .returning();
 
+    logger.info("[coaches-vote] vote submitted", {
+      category: "business",
+      grade,
+      round,
+      homeTeam,
+      awayTeam,
+      coachTeam,
+    });
+
     return NextResponse.json({ success: true, id: inserted.id }, { status: 201 });
   } catch (e) {
     logger.error("[coaches-vote] POST failed", { category: "api", error: String(e) });

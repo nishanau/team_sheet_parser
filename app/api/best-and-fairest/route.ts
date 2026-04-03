@@ -178,6 +178,15 @@ export async function POST(req: NextRequest) {
       })
       .returning();
 
+    logger.info("[best-and-fairest] vote submitted", {
+      category: "business",
+      grade,
+      round,
+      homeTeam,
+      opposition,
+      initials,
+    });
+
     return NextResponse.json({ success: true, id: inserted.id }, { status: 201 });
   } catch (err) {
     logger.error("[best-and-fairest] POST failed", { category: "api", error: String(err) });
