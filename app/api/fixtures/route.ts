@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(rows);
   } catch (err) {
-    logger.error("[fixtures] GET failed", { error: String(err), grade, homeTeam, round });
+    logger.error("[fixtures] GET failed", { category: "api", error: String(err), grade, homeTeam, round });
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }
 }

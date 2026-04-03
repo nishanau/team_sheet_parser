@@ -137,7 +137,7 @@ async function batchedMap<T, R>(
     const settled = await Promise.allSettled(batch.map(fn));
     for (const r of settled) {
       if (r.status === "fulfilled") results.push(r.value);
-      else logger.warn("[sync] batch item failed", { reason: String(r.reason) });
+      else logger.warn("[sync] batch item failed", { category: "sync", reason: String(r.reason) });
     }
     if (i + batchSize < items.length) await sleep(delayMs);
   }

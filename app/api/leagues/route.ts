@@ -39,7 +39,7 @@ export async function GET() {
       headers: { "Cache-Control": "private, max-age=300" },
     });
   } catch (err) {
-    logger.error("[leagues] GET failed", { error: String(err) });
+    logger.error("[leagues] GET failed", { category: "api", error: String(err) });
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }
 }

@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     const msg = (err as Error).message;
     log.push(`ERROR: ${msg}`);
-    logger.error("[cron/sync] failed", { error: String(err) });
+    logger.error("[cron/sync] failed", { category: "sync", error: String(err) });
     return NextResponse.json({ success: false, log, error: msg }, { status: 500 });
   }
 }

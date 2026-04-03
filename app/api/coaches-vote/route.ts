@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, id: inserted.id }, { status: 201 });
   } catch (e) {
-    logger.error("[coaches-vote] POST failed", { error: String(e) });
+    logger.error("[coaches-vote] POST failed", { category: "api", error: String(e) });
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }
 }
@@ -191,7 +191,7 @@ export async function GET() {
       .orderBy(desc(coachesVotes.createdAt));
     return NextResponse.json(records);
   } catch (e) {
-    logger.error("[coaches-vote] GET failed", { error: String(e) });
+    logger.error("[coaches-vote] GET failed", { category: "api", error: String(e) });
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }
 }

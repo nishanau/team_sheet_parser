@@ -115,7 +115,7 @@ export async function GET(req: NextRequest) {
     });
     data = (await res.json()) as Record<string, unknown>;
   } catch (err) {
-    logger.error("[game-players] PlayHQ fetch error", { error: String(err) });
+    logger.error("[game-players] PlayHQ fetch error", { category: "api", error: String(err) });
     const rows = await db.select().from(teamPlayers).where(eq(teamPlayers.teamName, teamName));
     const players: GamePlayer[] = rows.map((r: typeof teamPlayers.$inferSelect) => ({
       playerNumber: r.playerNumber,
@@ -206,7 +206,7 @@ export async function GET(req: NextRequest) {
         fetchedAt: new Date().toISOString(),
       });
     } catch (err) {
-      logger.error("[game-players] upsert error", { error: String(err), gameId, teamName });
+      logger.error("[game-players] upsert error", { category: "api", error: String(err), gameId, teamName });
     }
   })();
 

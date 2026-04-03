@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(available);
   } catch (e) {
-    logger.error("[coaches-vote/fixtures] GET failed", { error: String(e), grade, teamName });
+    logger.error("[coaches-vote/fixtures] GET failed", { category: "api", error: String(e), grade, teamName });
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }
 }

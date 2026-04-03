@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ teamName: row.teamName, gradeName: row.gradeName });
   } catch (e) {
-    logger.error("[coaches-vote/verify] POST failed", { error: String(e) });
+    logger.error("[coaches-vote/verify] POST failed", { category: "api", error: String(e) });
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }
 }
