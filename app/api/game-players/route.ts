@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { and, eq } from "drizzle-orm";
+
 import { db } from "@/lib/db";
 import { teamPlayers, gamePlayersFetched } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
 import { logger } from "@/lib/logger";
 
 const PLAYHQ_API = "https://api.playhq.com/graphql";
@@ -205,7 +206,7 @@ export async function GET(req: NextRequest) {
         fetchedAt: new Date().toISOString(),
       });
     } catch (err) {
-      logger.error("[game-players] upsert error", { error: String(err) });
+      logger.error("[game-players] upsert error", { error: String(err), gameId, teamName });
     }
   })();
 
