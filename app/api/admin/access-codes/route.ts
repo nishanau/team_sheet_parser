@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { teamAccessCodes, teams } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { randomBytes } from "crypto";
+import { logger } from "@/lib/logger";
 
 function genCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -60,17 +61,24 @@ export async function PATCH(req: NextRequest) {
     }
   }
 
-  if (action === "regenerate") {
-    const newCode = genCode();
-    await db.update(teamAccessCodes).set({ code: newCode }).where(eq(teamAccessCodes.id, id));
-    return NextResponse.json({ code: newCode });
-  }
+  try {
+    if (action === "regenerate") {
+      const newCode = genCode();
+      await db.update(teamAccessCodes).set({ code: newCode }).where(eq(teamAccessCodes.id, id));
+      logger.info("[access-codes] regenerated", { category: "business", id, role: session.user.role });
+      return NextResponse.json({ code: newCode });
+    }
 
-  if (action === "toggle") {
-    const [current] = await db.select({ active: teamAccessCodes.active }).from(teamAccessCodes).where(eq(teamAccessCodes.id, id)).limit(1);
-    await db.update(teamAccessCodes).set({ active: !current.active }).where(eq(teamAccessCodes.id, id));
-    return NextResponse.json({ active: !current.active });
-  }
+    if (action === "toggle") {
+      const [current] = await db.select({ active: teamAccessCodes.active }).from(teamAccessCodes).where(eq(teamAccessCodes.id, id)).limit(1);
+      await db.update(teamAccessCodes).set({ active: !current.active }).where(eq(teamAccessCodes.id, id));
+      logger.info("[access-codes] toggled", { category: "business", id, active: !current.active, role: session.user.role });
+      return NextResponse.json({ active: !current.active });
+    }
 
-  return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+  } catch (err) {
+    logger.error("[access-codes] PATCH failed", { category: "api", error: String(err), id, action });
+    return NextResponse.json({ error: "Internal server error." }, { status: 500 });
+  }
 }

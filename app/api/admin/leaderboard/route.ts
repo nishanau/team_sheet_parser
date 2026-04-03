@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { bestAndFairest, coachesVotes, teams } from "@/db/schema";
 import { ROUND_OPTIONS } from "@/lib/constants";
+import { logger } from "@/lib/logger";
 
 // Vote weight per position (index 0 = player1 = 5 votes)
 const VOTE_WEIGHTS = [5, 4, 3, 2, 1];
@@ -91,39 +92,53 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Club admin: get their team names
-  let scopedTeamNames: string[] | null = null;
-  if (session.user.role === "club_admin" && session.user.clubId && session.user.leagueId) {
-    const clubTeams = await db
-      .select({ name: teams.name })
-      .from(teams)
-      .where(and(eq(teams.clubId, session.user.clubId), eq(teams.leagueId, session.user.leagueId)));
-    scopedTeamNames = clubTeams.map((t) => t.name);
-    if (scopedTeamNames.length === 0) return NextResponse.json({ rows: [], rounds: [] });
+  logger.info("[admin/leaderboard] GET", {
+    category: "api",
+    type,
+    competition,
+    grade,
+    round: round ?? null,
+    role: session.user.role,
+  });
+
+  try {
+    // Club admin: get their team names
+    let scopedTeamNames: string[] | null = null;
+    if (session.user.role === "club_admin" && session.user.clubId && session.user.leagueId) {
+      const clubTeams = await db
+        .select({ name: teams.name })
+        .from(teams)
+        .where(and(eq(teams.clubId, session.user.clubId), eq(teams.leagueId, session.user.leagueId)));
+      scopedTeamNames = clubTeams.map((t) => t.name);
+      if (scopedTeamNames.length === 0) return NextResponse.json({ rows: [], rounds: [] });
+    }
+
+    let entries: VoteEntry[];
+
+    if (type === "coaches") {
+      const rows = await db.select().from(coachesVotes).where(eq(coachesVotes.grade, grade));
+      entries = extractVotes(rows as Parameters<typeof extractVotes>[0], "coachTeam");
+    } else {
+      // Best & Fairest
+      const bfFilters = [
+        eq(bestAndFairest.competition, competition),
+        ...(grade ? [eq(bestAndFairest.grade, grade)] : []),
+        ...(scopedTeamNames ? [inArray(bestAndFairest.homeTeam as any, scopedTeamNames)] : []),
+      ];
+      const rows = await db.select().from(bestAndFairest).where(and(...bfFilters));
+      entries = extractVotes(rows as Parameters<typeof extractVotes>[0], "homeTeam");
+    }
+
+    if (round === "all") {
+      // Find which rounds actually have votes, in canonical order
+      const usedRoundsSet = new Set(entries.map((e) => e.round));
+      const usedRounds = ROUND_OPTIONS.filter((r) => usedRoundsSet.has(r));
+      return NextResponse.json({ mode: "pivot", rows: buildPivot(entries, usedRounds), rounds: usedRounds });
+    }
+
+    return NextResponse.json({ mode: "round", rows: buildLeaderboard(entries, round), rounds: [] });
+  } catch (err) {
+    logger.error("[admin/leaderboard] GET failed", { category: "api", error: String(err), type, grade });
+    return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }
-
-  let entries: VoteEntry[];
-
-  if (type === "coaches") {
-    const rows = await db.select().from(coachesVotes).where(eq(coachesVotes.grade, grade));
-    entries = extractVotes(rows as Parameters<typeof extractVotes>[0], "coachTeam");
-  } else {
-    // Best & Fairest
-    const bfFilters = [
-      eq(bestAndFairest.competition, competition),
-      ...(grade ? [eq(bestAndFairest.grade, grade)] : []),
-      ...(scopedTeamNames ? [inArray(bestAndFairest.homeTeam as any, scopedTeamNames)] : []),
-    ];
-    const rows = await db.select().from(bestAndFairest).where(and(...bfFilters));
-    entries = extractVotes(rows as Parameters<typeof extractVotes>[0], "homeTeam");
-  }
-
-  if (round === "all") {
-    // Find which rounds actually have votes, in canonical order
-    const usedRoundsSet = new Set(entries.map((e) => e.round));
-    const usedRounds = ROUND_OPTIONS.filter((r) => usedRoundsSet.has(r));
-    return NextResponse.json({ mode: "pivot", rows: buildPivot(entries, usedRounds), rounds: usedRounds });
-  }
-
-  return NextResponse.json({ mode: "round", rows: buildLeaderboard(entries, round), rounds: [] });
 }
