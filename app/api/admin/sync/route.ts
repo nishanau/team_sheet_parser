@@ -8,6 +8,7 @@ import {
   finishSync,
   isRunning,
 } from "@/lib/sync-store";
+import { logger } from "@/lib/logger";
 
 // GET — return current sync state (polled by the UI every second)
 export async function GET() {
@@ -31,6 +32,7 @@ export async function POST() {
 
   // Mark as running before going async so a second POST sees the lock immediately
   startSync();
+  logger.info("[admin/sync] triggered", { category: "business", triggeredBy: session.user.name ?? "unknown" });
 
   // Build a proxy array that forwards every push() to the store
   const log: string[] = new Proxy([] as string[], {
@@ -56,6 +58,7 @@ export async function POST() {
       finishSync(true);
     } catch (err) {
       appendLog(`ERROR: ${(err as Error).message}`);
+      logger.error("[admin/sync] failed", { category: "sync", error: String(err) });
       finishSync(false);
     }
   })();

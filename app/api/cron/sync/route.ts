@@ -17,8 +17,11 @@ export async function GET(req: NextRequest) {
   const started = Date.now();
   const log: string[] = [`Sync started at ${new Date().toISOString()}`];
 
+  logger.info("[cron/sync] triggered", { category: "sync" });
+
   try {
     await runSync(log);
+    logger.info("[cron/sync] completed", { category: "sync" });
     log.push(`Sync completed in ${((Date.now() - started) / 1000).toFixed(1)}s`);
     return NextResponse.json({ success: true, log });
   } catch (err) {

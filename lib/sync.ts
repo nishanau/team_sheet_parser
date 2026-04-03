@@ -167,6 +167,9 @@ export async function runSync(log: string[]): Promise<void> {
   const isLocal = !tursoUrl || tursoUrl.startsWith("file:") || !tursoToken;
   const dbUrl   = isLocal ? "file:db/local.db" : tursoUrl!;
 
+  const syncStartedAt = Date.now();
+  logger.info("[sync] started", { category: "sync" });
+
   log.push(isLocal ? "Target: local db/local.db" : `Target: Turso (${dbUrl})`);
 
   const client = isLocal
@@ -232,6 +235,12 @@ export async function runSync(log: string[]): Promise<void> {
   }
 
   log.push(`Grades to sync: ${gradeEntries.length} (SFL: ${gradeEntries.filter(g => g.orgId === SFL_ORG_ID).length}, STJFL: ${gradeEntries.filter(g => g.orgId === STJFL_ORG_ID).length})`);
+  logger.info("[sync] step1 complete", {
+    category: "sync",
+    gradeCount: gradeEntries.length,
+    sflGrades: gradeEntries.filter((g) => g.orgId === SFL_ORG_ID).length,
+    stjflGrades: gradeEntries.filter((g) => g.orgId === STJFL_ORG_ID).length,
+  });
 
   // ── Step 2: For each grade, fetch ladder → get team IDs ───────────────────
   type LadderData = {
@@ -254,6 +263,7 @@ export async function runSync(log: string[]): Promise<void> {
     }
     log.push(`  [${label}] ${gradeName}: ${standings.length} teams`);
   });
+  logger.info("[sync] step2 complete", { category: "sync", teamCount: uniqueTeamIds.size });
 
   // ── Step 3: Collect all games via teamFixture ─────────────────────────────
   type FixtureData = {
@@ -310,6 +320,12 @@ export async function runSync(log: string[]): Promise<void> {
   const sflGames   = [...allGames.values()].filter(g => g.orgId === SFL_ORG_ID);
   const stjflGames = [...allGames.values()].filter(g => g.orgId === STJFL_ORG_ID);
   log.push(`Total unique games collected: ${allGames.size} (SFL: ${sflGames.length}, STJFL: ${stjflGames.length})`);
+  logger.info("[sync] step3 complete", {
+    category: "sync",
+    gameCount: allGames.size,
+    sflGames: sflGames.length,
+    stjflGames: stjflGames.length,
+  });
 
   // ── Step 4: Write teams to DB ─────────────────────────────────────────────
   await client.execute({ sql: "DELETE FROM teams WHERE league_id = ?", args: [sflLeagueId] });
@@ -335,6 +351,7 @@ export async function runSync(log: string[]): Promise<void> {
   }
   if (teamInserts.length > 0) await client.batch(teamInserts, "write");
   log.push(`Teams inserted: ${teamInserts.length}`);
+  logger.info("[sync] step4 complete", { category: "sync", teamsInserted: teamInserts.length });
 
   // ── Step 5: Write fixtures to DB ──────────────────────────────────────────
   // Delete and replace SFL fixtures by grade name
@@ -359,6 +376,7 @@ export async function runSync(log: string[]): Promise<void> {
   }
   if (fixtureInserts.length > 0) await client.batch(fixtureInserts, "write");
   log.push(`Fixtures inserted: ${fixtureInserts.length}`);
+  logger.info("[sync] step5 complete", { category: "sync", fixturesInserted: fixtureInserts.length });
 
   // ── Step 6: Fetch clubs for SFL and STJFL ────────────────────────────────
   log.push("Fetching clubs from PlayHQ...");
@@ -370,6 +388,7 @@ export async function runSync(log: string[]): Promise<void> {
   const allClubs = [...sflClubs, ...stjflClubs];
 
   log.push(`  Clubs found: ${sflClubs.length} SFL, ${stjflClubs.length} STJFL`);
+  logger.info("[sync] step6 complete", { category: "sync", sflClubs: sflClubs.length, stjflClubs: stjflClubs.length });
 
   // ── Step 7: For each club, get its teams for the active season and link ──
   const sflSeasonId   = activeSeasonIds[SFL_ORG_ID];
@@ -433,4 +452,6 @@ export async function runSync(log: string[]): Promise<void> {
   });
 
   log.push(`Clubs upserted and teams linked: ${clubsLinked}`);
+  logger.info("[sync] step7 complete", { category: "sync", clubsLinked });
+  logger.info("[sync] completed", { category: "sync", durationMs: Date.now() - syncStartedAt });
 }
