@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { teamAccessCodes } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
+import { logger } from "@/lib/logger";
 
 // Simple in-memory rate limiter: 10 attempts per IP per 15 minutes
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -78,7 +79,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ teamName: row.teamName, gradeName: row.gradeName });
   } catch (e) {
-    console.error("[coaches-vote/verify POST]", e);
+    logger.error("[coaches-vote/verify] POST failed", { error: String(e) });
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }
 }

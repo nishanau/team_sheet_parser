@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { fixtures } from "@/db/schema";
 import { and, eq, asc } from "drizzle-orm";
+import { logger } from "@/lib/logger";
 
 /**
  * GET /api/fixtures?grade=...&homeTeam=...&round=...
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(rows);
   } catch (err) {
-    console.error("[fixtures GET]", err);
+    logger.error("[fixtures] GET failed", { error: String(err) });
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }
 }

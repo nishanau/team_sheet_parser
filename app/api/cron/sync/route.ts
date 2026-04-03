@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { runSync } from "@/lib/sync";
+import { logger } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     const msg = (err as Error).message;
     log.push(`ERROR: ${msg}`);
-    console.error("[cron/sync]", err);
+    logger.error("[cron/sync] failed", { error: String(err) });
     return NextResponse.json({ success: false, log, error: msg }, { status: 500 });
   }
 }

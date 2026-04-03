@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { leagues, teams } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { AGE_GROUPS, GRADE_MAP, STJFL_TEAMS } from "@/lib/constants";
+import { logger } from "@/lib/logger";
 
 export async function GET() {
   try {
@@ -38,7 +39,7 @@ export async function GET() {
       headers: { "Cache-Control": "private, max-age=300" },
     });
   } catch (err) {
-    console.error("[leagues GET]", err);
+    logger.error("[leagues] GET failed", { error: String(err) });
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }
 }

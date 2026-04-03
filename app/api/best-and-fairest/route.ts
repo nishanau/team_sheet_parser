@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { bestAndFairest, leagues, teams } from "@/db/schema";
 import { and, eq, desc, sql } from "drizzle-orm";
 import { ROUND_OPTIONS as ROUND_OPTIONS_ARR, AGE_GROUPS, GRADE_MAP, STJFL_TEAMS } from "@/lib/constants";
+import { logger } from "@/lib/logger";
 
 const DAILY_LIMIT = 3;
 
@@ -179,7 +180,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, id: inserted.id }, { status: 201 });
   } catch (err) {
-    console.error("[best-and-fairest POST]", err);
+    logger.error("[best-and-fairest] POST failed", { error: String(err) });
     return NextResponse.json(
       { error: "Internal server error." },
       { status: 500 }
@@ -195,7 +196,7 @@ export async function GET() {
       .orderBy(desc(bestAndFairest.createdAt));
     return NextResponse.json(records);
   } catch (err) {
-    console.error("[best-and-fairest GET]", err);
+    logger.error("[best-and-fairest] GET failed", { error: String(err) });
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }
 }

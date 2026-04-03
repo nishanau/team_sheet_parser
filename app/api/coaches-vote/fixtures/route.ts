@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { fixtures, coachesVotes } from "@/db/schema";
 import { and, eq, /* lte, */ or } from "drizzle-orm";
+import { logger } from "@/lib/logger";
 
 /**
  * GET /api/coaches-vote/fixtures?grade=...&teamName=...
@@ -74,7 +75,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(available);
   } catch (e) {
-    console.error("[coaches-vote/fixtures GET]", e);
+    logger.error("[coaches-vote/fixtures] GET failed", { error: String(e) });
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }
 }

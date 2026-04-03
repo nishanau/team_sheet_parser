@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { coachesVotes, leagues, teams, teamAccessCodes } from "@/db/schema";
 import { and, eq, desc } from "drizzle-orm";
 import { ROUND_OPTIONS as ROUND_OPTIONS_ARR } from "@/lib/constants";
+import { logger } from "@/lib/logger";
 
 // Only these two grades are valid for Coaches Vote
 export const COACHES_VOTE_GRADES = [
@@ -176,7 +177,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, id: inserted.id }, { status: 201 });
   } catch (e) {
-    console.error("[coaches-vote POST]", e);
+    logger.error("[coaches-vote] POST failed", { error: String(e) });
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }
 }
@@ -190,7 +191,7 @@ export async function GET() {
       .orderBy(desc(coachesVotes.createdAt));
     return NextResponse.json(records);
   } catch (e) {
-    console.error("[coaches-vote GET]", e);
+    logger.error("[coaches-vote] GET failed", { error: String(e) });
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }
 }
