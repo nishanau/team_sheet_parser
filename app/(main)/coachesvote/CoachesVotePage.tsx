@@ -1,22 +1,14 @@
 "use client";
 
-import { useState, useEffect, startTransition } from "react";
+import { useState, useEffect } from "react";
 import styles from "../bestandfairest/BestAndFairest.module.css";
 import matchStyles from "./CoachesVote.module.css";
 import PlayerInput from "../../components/PlayerInput";
 import type { GamePlayer } from "@/app/api/game-players/route";
+import { useVerifiedSession } from "@/lib/useVerifiedSession";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 type CoachesVoteGrade = "SFL Community League Senior Men" | "SFL Community League Senior Women";
-
-// localStorage key for persisted verification
-const LS_KEY = "cv_verified";
-
-interface VerifiedState {
-  teamName:  string;
-  gradeName: string;
-  code:      string;
-}
 
 interface FixtureRow {
   id:           string;
@@ -31,8 +23,8 @@ interface FixtureRow {
 const VOTE_LABELS = ["5", "4", "3", "2", "1"];
 
 // ─── Access Code Gate ──────────────────────────────────────────────────────────
-function CodeGate({ onVerified }: { onVerified: (v: VerifiedState) => void }) {
-  const [code, setCode]         = useState("");
+function CodeGate({ onVerified }: { onVerified: (teamName: string, gradeName: string, code: string) => void }) {
+  const [code, setCode]           = useState("");
   const [verifying, setVerifying] = useState(false);
   const [codeError, setCodeError] = useState<string | null>(null);
 
@@ -41,23 +33,18 @@ function CodeGate({ onVerified }: { onVerified: (v: VerifiedState) => void }) {
     setCodeError(null);
     setVerifying(true);
     try {
-      const res = await fetch("/api/coaches-vote/verify", {
+      const trimmed = code.trim().toUpperCase();
+      const res = await fetch("/api/verify-code", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ accessCode: code.trim() }),
+        body:    JSON.stringify({ accessCode: trimmed }),
       });
       const data = await res.json() as { teamName?: string; gradeName?: string; error?: string };
       if (!res.ok) {
         setCodeError(data.error ?? "Invalid access code.");
         return;
       }
-      const verified: VerifiedState = {
-        teamName:  data.teamName!,
-        gradeName: data.gradeName!,
-        code:      code.trim().toUpperCase(),
-      };
-      localStorage.setItem(LS_KEY, JSON.stringify(verified));
-      onVerified(verified);
+      onVerified(data.teamName!, data.gradeName!, trimmed);
     } catch {
       setCodeError("Could not verify code. Please try again.");
     } finally {
@@ -110,51 +97,37 @@ function CodeGate({ onVerified }: { onVerified: (v: VerifiedState) => void }) {
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function CoachesVotePage() {
-  // Always start null on both server and client to avoid hydration mismatch.
-  // After mount we read localStorage — the brief flash is avoided by showing
-  // nothing until hydrated (no SSR content to mismatch against).
-  const [verified, setVerified]   = useState<VerifiedState | null>(null);
-  const [hydrated, setHydrated]   = useState(false);
+  const { session, hydrated, verify, logout } = useVerifiedSession("cv_identity", "cv_code");
 
-  useEffect(() => {
-    let initial: VerifiedState | null = null;
-    try {
-      const stored = localStorage.getItem(LS_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as VerifiedState;
-        if (parsed.teamName && parsed.gradeName && parsed.code) initial = parsed;
-      }
-    } catch { /* ignore malformed storage */ }
-    // Batch both state updates in one callback so React only re-renders once
-    startTransition(() => {
-      setVerified(initial);
-      setHydrated(true);
-    });
-  }, []);
-
-  // Render nothing until client has hydrated — prevents server/client mismatch
   if (!hydrated) return null;
 
-  if (!verified) {
-    return <CodeGate onVerified={setVerified} />;
+  if (!session) {
+    return <CodeGate onVerified={verify} />;
   }
 
-  return <CoachesVoteForm verified={verified} onLogout={() => {
-    localStorage.removeItem(LS_KEY);
-    setVerified(null);
-  }} />;
+  return (
+    <CoachesVoteForm
+      teamName={session.teamName}
+      gradeName={session.gradeName}
+      accessCode={session.code}
+      onLogout={logout}
+    />
+  );
 }
 
 // ─── The actual form (shown once verified) ────────────────────────────────────
 function CoachesVoteForm({
-  verified,
+  teamName: coachTeam,
+  gradeName,
+  accessCode,
   onLogout,
 }: {
-  verified: VerifiedState;
-  onLogout: () => void;
+  teamName:   string;
+  gradeName:  string;
+  accessCode: string;
+  onLogout:   () => void;
 }) {
-  const grade    = verified.gradeName as CoachesVoteGrade;
-  const coachTeam = verified.teamName;
+  const grade = gradeName as CoachesVoteGrade;
 
   // ── Step: pick a match first, then fill votes ─────────────────────────────
   const [selectedFixture, setSelectedFixture] = useState<FixtureRow | null>(null);
@@ -255,7 +228,7 @@ function CoachesVoteForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          accessCode: verified.code,
+          accessCode: accessCode,
           grade,
           round:     selectedFixture.roundName,
           matchDate: selectedFixture.matchDate,

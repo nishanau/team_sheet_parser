@@ -2,196 +2,219 @@
 
 import { useState, useEffect } from "react";
 import styles from "./BestAndFairest.module.css";
-import selectStyles from "../../components/Select.module.css";
-import Select from "../../components/Select";
+import matchStyles from "../coachesvote/CoachesVote.module.css";
 import PlayerInput from "../../components/PlayerInput";
 import type { GamePlayer } from "@/app/api/game-players/route";
-import { ROUND_OPTIONS } from "@/lib/constants";
+import { useVerifiedSession } from "@/lib/useVerifiedSession";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface GradeData {
-  name: string;
-  teams: string[];
-}
-interface AgeGroupData {
-  name: string;
-  grades: GradeData[];
-  teams: string[]; // STJFL hardcoded flat list
-}
-interface LeagueData {
-  name: string;
-  ageGroups: AgeGroupData[];
+interface FixtureRow {
+  id:           string;
+  gradeName:    string;
+  roundName:    string;
+  matchDate:    string;
+  homeTeamName: string;
+  awayTeamName: string;
+  venueName:    string | null;
 }
 
-// Vote weight labels: row 1 = 5 votes … row 5 = 1 vote
 const VOTE_LABELS = ["5", "4", "3", "2", "1"];
 
-// Get today's date in AEST/AEDT (Tasmania)
-function getTasmanianDate() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Australia/Hobart",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+// Derive competition + ageGroup from gradeName stored in the session
+function parseGrade(gradeName: string): { competition: string; ageGroup: string } {
+  if (gradeName.startsWith("SFL ")) {
+    const knownAgeGroups = ["Senior Men", "Reserves Men", "U18 Boys", "Senior Women"];
+    const afterSfl = gradeName.slice(4);
+    const ag = knownAgeGroups.find((a) => afterSfl.endsWith(a)) ?? afterSfl;
+    return { competition: "SFL", ageGroup: ag };
+  }
+  if (gradeName.startsWith("STJFL ")) {
+    return { competition: "STJFL", ageGroup: gradeName.slice(6) };
+  }
+  return { competition: "SFL", ageGroup: gradeName };
 }
 
-// ─── Main Page ─────────────────────────────────────────────────────────────────
-export default function BestAndFairestPage() {
-  // ── Form state ───────────────────────────────────────────────────────────
-  const [competition, setCompetition] = useState("");
-  const [matchDate, setMatchDate]     = useState(getTasmanianDate);
-  const [ageGroup, setAgeGroup]       = useState("");
-  const [grade, setGrade]             = useState("");
-  const [homeTeam, setHomeTeam]       = useState("");
-  const [opposition, setOpposition]   = useState("");
-  const [round, setRound]             = useState(ROUND_OPTIONS[0]);
-  const [players, setPlayers]         = useState(
-    Array.from({ length: 5 }, () => ({ number: "", name: "" }))
+// ─── Access Code Gate ──────────────────────────────────────────────────────────
+function CodeGate({ onVerified }: { onVerified: (teamName: string, gradeName: string, code: string) => void }) {
+  const [code,      setCode]      = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const [codeError, setCodeError] = useState<string | null>(null);
+
+  async function handleVerify(e: React.FormEvent) {
+    e.preventDefault();
+    setCodeError(null);
+    setVerifying(true);
+    try {
+      const trimmed = code.trim().toUpperCase();
+      const res  = await fetch("/api/verify-code", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ accessCode: trimmed }),
+      });
+      const data = await res.json() as { teamName?: string; gradeName?: string; error?: string };
+      if (!res.ok) {
+        setCodeError(data.error ?? "Invalid access code.");
+        return;
+      }
+      onVerified(data.teamName!, data.gradeName!, trimmed);
+    } catch {
+      setCodeError("Could not verify code. Please try again.");
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  return (
+    <div className={styles.page}>
+      <div className={styles.card}>
+        <div className={styles.header}>
+          <div>
+            <h1 className={styles.title}>Best &amp; Fairest Votes</h1>
+            <p className={styles.sub}>Enter your team access code to continue.</p>
+          </div>
+        </div>
+        <form onSubmit={handleVerify} className={styles.formBody}>
+          <section className={styles.section}>
+            <div className={styles.fieldGroup} style={{ maxWidth: 280 }}>
+              <label className={styles.label} htmlFor="accessCode">Access Code</label>
+              <input
+                id="accessCode"
+                type="text"
+                className={styles.input}
+                placeholder="e.g. A3BX-7K2M"
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                maxLength={9}
+                autoComplete="off"
+                spellCheck={false}
+                required
+              />
+            </div>
+            {codeError && <div className={styles.errorBanner}>{codeError}</div>}
+          </section>
+          <div className={styles.formFooter}>
+            <button
+              type="submit"
+              className={`${styles.btn} ${styles.btnPrimary}`}
+              disabled={verifying || code.trim().length < 4}
+            >
+              {verifying ? "Verifying…" : "Unlock Form"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
-  const [submitterName, setSubmitterName] = useState("");
-  const [initials, setInitials]           = useState("");
-  const [submitting, setSubmitting]       = useState(false);
-  const [submitted, setSubmitted]         = useState(false);
-  const [error, setError]                 = useState<string | null>(null);
-  const [fixtureLoading, setFixtureLoading] = useState(false);
-  const [fixtureFound, setFixtureFound]     = useState<string | null>(null); // info hint
-  const [fixtureGameId, setFixtureGameId]   = useState<string | null>(null); // PlayHQ game id
-  const [gamePlayers, setGamePlayers]       = useState<GamePlayer[]>([]);
+}
+
+// ─── Main Page Shell ───────────────────────────────────────────────────────────
+export default function BestAndFairestPage() {
+  const { session, hydrated, verify, logout } = useVerifiedSession("bf_identity", "bf_code");
+
+  if (!hydrated) return null;
+
+  if (!session) {
+    return <CodeGate onVerified={verify} />;
+  }
+
+  return (
+    <BestAndFairestForm
+      teamName={session.teamName}
+      gradeName={session.gradeName}
+      accessCode={session.code}
+      expiresAt={session.expiresAt}
+      onLogout={logout}
+    />
+  );
+}
+
+// ─── Form (shown once verified) ───────────────────────────────────────────────
+function BestAndFairestForm({
+  teamName,
+  gradeName,
+  accessCode,
+  expiresAt,
+  onLogout,
+}: {
+  teamName:   string;
+  gradeName:  string;
+  accessCode: string;
+  expiresAt:  number;
+  onLogout:   () => void;
+}) {
+  const { competition, ageGroup } = parseGrade(gradeName);
+
+  const [selectedFixture, setSelectedFixture] = useState<FixtureRow | null>(null);
+
+  const [availableFixtures, setAvailableFixtures] = useState<FixtureRow[]>([]);
+  const [fixturesLoading,   setFixturesLoading]   = useState(true);
+  const [fixturesError,     setFixturesError]     = useState<string | null>(null);
+
+  const [homePlayers,    setHomePlayers]    = useState<GamePlayer[]>([]);
+  const [awayPlayers,    setAwayPlayers]    = useState<GamePlayer[]>([]);
   const [playersLoading, setPlayersLoading] = useState(false);
 
-  // ── League data from DB ──────────────────────────────────────────────────
-  const [leagueData, setLeagueData]   = useState<LeagueData[]>([]);
-  const [dataLoading, setDataLoading] = useState(true);
-  const [dataError, setDataError]     = useState<string | null>(null);
+  const [players,       setPlayers]       = useState(emptyPlayers);
+  const [submitterName, setSubmitterName] = useState("");
+  const [initials,      setInitials]      = useState("");
+  const [submitting,    setSubmitting]    = useState(false);
+  const [submitted,     setSubmitted]     = useState(false);
+  const [error,         setError]         = useState<string | null>(null);
 
+  // Session expiry countdown (shown when < 60 min remain)
+  const [minsLeft, setMinsLeft] = useState<number | null>(null);
   useEffect(() => {
-    fetch("/api/leagues")
-      .then((r) => r.json())
-      .then((data: LeagueData[]) => {
-        setLeagueData(data);
-        if (data.length > 0) {
-          const firstLeague   = data[0];
-          const firstAgeGroup = firstLeague.ageGroups[0];
-          const firstGrade    = firstAgeGroup?.grades[0];
-          setCompetition(firstLeague.name);
-          setAgeGroup(firstAgeGroup?.name ?? "");
-          setGrade(firstGrade?.name ?? "");
-        }
-      })
-      .catch(() => setDataError("Failed to load league data. Please refresh."))
-      .finally(() => setDataLoading(false));
-  }, []);
+    const tick = () => {
+      const remaining = Math.floor((expiresAt - Date.now()) / 60000);
+      setMinsLeft(remaining <= 60 ? Math.max(0, remaining) : null);
+    };
+    tick();
+    const id = setInterval(tick, 60_000);
+    return () => clearInterval(id);
+  }, [expiresAt]);
 
-  // ── Auto-fill Opposition from fixture when grade + round + homeTeam all set ──
-  useEffect(() => {
-    if (!grade || !homeTeam || !round) return;
-    setFixtureLoading(true);
-    setFixtureFound(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadFixtures(); }, [gradeName, teamName]); // loadFixtures is stable per render
+
+  function loadFixtures() {
+    setFixturesLoading(true);
+    setFixturesError(null);
     fetch(
-      `/api/fixtures?grade=${encodeURIComponent(grade)}&homeTeam=${encodeURIComponent(homeTeam)}&round=${encodeURIComponent(round)}`
+      `/api/best-and-fairest/fixtures?grade=${encodeURIComponent(gradeName)}&teamName=${encodeURIComponent(teamName)}`
     )
       .then((r) => r.json())
-      .then((rows) => {
-        if (Array.isArray(rows) && rows.length > 0) {
-          setOpposition(rows[0].awayTeamName);
-          setFixtureFound(`vs ${rows[0].awayTeamName}`);
-          setFixtureGameId(rows[0].id ?? null);
-        } else {
-          setOpposition("");
-          setFixtureFound(null);
-          setFixtureGameId(null);
-        }
+      .then((data) => {
+        if (Array.isArray(data)) setAvailableFixtures(data as FixtureRow[]);
+        else setFixturesError((data as { error: string }).error ?? "Failed to load fixtures.");
       })
-      .catch(() => setFixtureFound(null))
-      .finally(() => setFixtureLoading(false));
-  }, [grade, homeTeam, round]);
+      .catch(() => setFixturesError("Failed to load fixtures. Please refresh."))
+      .finally(() => setFixturesLoading(false));
+  }
 
-  // ── Fetch game players from DB/PlayHQ once fixture + both teams are resolved ──
   useEffect(() => {
-    if (!fixtureGameId || !homeTeam || !opposition) { setGamePlayers([]); return; }
+    setPlayers(emptyPlayers());
+    setHomePlayers([]);
+    setAwayPlayers([]);
+  }, [selectedFixture]);
+
+  useEffect(() => {
+    if (!selectedFixture) return;
     setPlayersLoading(true);
+    const { id, homeTeamName, awayTeamName } = selectedFixture;
     Promise.all([
-      fetch(`/api/game-players?gameId=${encodeURIComponent(fixtureGameId)}&teamName=${encodeURIComponent(homeTeam)}`).then((r) => r.json()),
-      fetch(`/api/game-players?gameId=${encodeURIComponent(fixtureGameId)}&teamName=${encodeURIComponent(opposition)}`).then((r) => r.json()),
+      fetch(`/api/game-players?gameId=${encodeURIComponent(id)}&teamName=${encodeURIComponent(homeTeamName)}`).then((r) => r.json()),
+      fetch(`/api/game-players?gameId=${encodeURIComponent(id)}&teamName=${encodeURIComponent(awayTeamName)}`).then((r) => r.json()),
     ])
-      .then(([homeData, awayData]: [{ players: GamePlayer[] }, { players: GamePlayer[] }]) => {
-        setGamePlayers([...(homeData.players ?? []), ...(awayData.players ?? [])]);
+      .then(([homeData, awayData]) => {
+        setHomePlayers((homeData as { players: GamePlayer[] }).players ?? []);
+        setAwayPlayers((awayData as { players: GamePlayer[] }).players ?? []);
       })
-      .catch(() => setGamePlayers([]))
+      .catch(() => { setHomePlayers([]); setAwayPlayers([]); })
       .finally(() => setPlayersLoading(false));
-  }, [fixtureGameId, homeTeam, opposition]);
+  }, [selectedFixture]);
 
-  // ── Derived lists ─────────────────────────────────────────────────────────
-  const currentLeague    = leagueData.find((l) => l.name === competition);
-  const currentAgeGroups = currentLeague?.ageGroups ?? [];
-  const currentAgeGroup  = currentAgeGroups.find((ag) => ag.name === ageGroup);
-  const currentGrades    = currentAgeGroup?.grades ?? [];
-  const showGrade        = currentGrades.length > 0;
-
-  // Teams come from the selected grade (SFL) or the flat STJFL list
-  const currentGradeData = currentGrades.find((g) => g.name === grade);
-  const allTeams: string[] = showGrade
-    ? (currentGradeData?.teams ?? [])
-    : (currentAgeGroup?.teams ?? []);
-  const oppositionTeams = allTeams.filter((t) => t !== homeTeam);
-
-  // ── Cascade handlers ─────────────────────────────────────────────────────
-  function handleCompetitionChange(name: string) {
-    const league  = leagueData.find((l) => l.name === name);
-    const firstAg = league?.ageGroups[0];
-    const firstGr = firstAg?.grades[0];
-    setCompetition(name);
-    setAgeGroup(firstAg?.name ?? "");
-    setGrade(firstGr?.name ?? "");
-    setHomeTeam("");
-    setOpposition("");
-    setFixtureFound(null);
-  }
-
-  function handleAgeGroupChange(ag: string) {
-    const ageGroupData = currentLeague?.ageGroups.find((a) => a.name === ag);
-    const firstGrade   = ageGroupData?.grades[0];
-    setAgeGroup(ag);
-    setGrade(firstGrade?.name ?? "");
-    setHomeTeam("");
-    setOpposition("");
-    setFixtureFound(null);
-  }
-
-  const emptyPlayers = () => Array.from({ length: 5 }, () => ({ number: "", name: "" }));
-
-  function handleGradeChange(g: string) {
-    setGrade(g);
-    setHomeTeam("");
-    setOpposition("");
-    setFixtureFound(null);
-    setFixtureGameId(null);
-    setGamePlayers([]);
-    setPlayers(emptyPlayers());
-  }
-
-  function handleRoundChange(r: string) {
-    setRound(r);
-    setOpposition("");
-    setFixtureFound(null);
-    setFixtureGameId(null);
-    setGamePlayers([]);
-    setPlayers(emptyPlayers());
-  }
-
-  function handleHomeTeamChange(t: string) {
-    setHomeTeam(t);
-    setOpposition("");
-    setFixtureFound(null);
-    setFixtureGameId(null);
-    setGamePlayers([]);
-    setPlayers(emptyPlayers());
-  }
-
-  function handleOppositionChange(t: string) {
-    setOpposition(t);
-    setPlayers(emptyPlayers());
+  function emptyPlayers() {
+    return Array.from({ length: 5 }, () => ({ number: "", name: "" }));
   }
 
   function updatePlayer(idx: number, field: "number" | "name", value: string) {
@@ -202,57 +225,52 @@ export default function BestAndFairestPage() {
     });
   }
 
+  const allGamePlayers: GamePlayer[] = [
+    ...homePlayers.map((p) => ({ ...p, firstName: `[H] ${p.firstName}` })),
+    ...awayPlayers.map((p) => ({ ...p, firstName: `[A] ${p.firstName}` })),
+  ];
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!selectedFixture) return;
     setError(null);
 
-    if (!submitterName.trim()) {
-      setError("Please enter your name before submitting.");
-      return;
-    }
-    if (!initials.trim()) {
-      setError("Please enter your initials before submitting.");
-      return;
-    }
+    if (!submitterName.trim()) { setError("Please enter your name before submitting."); return; }
+    if (!initials.trim())      { setError("Please enter your initials before submitting."); return; }
 
-    // Duplicate player number check
-    const enteredNumbers = players.map((p) => p.number.trim()).filter(Boolean);
-    const uniqueNumbers  = new Set(enteredNumbers);
-    if (uniqueNumbers.size !== enteredNumbers.length) {
+    const enteredNums = players.map((p) => p.number.trim()).filter(Boolean);
+    if (new Set(enteredNums).size !== enteredNums.length) {
       const seen  = new Set<string>();
-      const dupes = enteredNumbers.filter((n) => seen.size === seen.add(n).size);
-      setError(`Duplicate player number${dupes.length > 1 ? "s" : ""}: ${[...new Set(dupes)].join(", ")}. Each player must have a unique number.`);
+      const dupes = enteredNums.filter((n) => seen.size === seen.add(n).size);
+      setError(`Duplicate player number${dupes.length > 1 ? "s" : ""}: ${[...new Set(dupes)].join(", ")}.`);
       return;
     }
 
     setSubmitting(true);
     try {
+      // The accessCode is re-sent on every submission so the server can verify
+      // the code is still active. It comes from sessionStorage (tab lifetime only).
       const res = await fetch("/api/best-and-fairest", {
-        method: "POST",
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          accessCode,
           competition,
-          matchDate,
+          matchDate:   selectedFixture.matchDate,
           ageGroup,
-          grade:     showGrade ? grade : null,
-          homeTeam,
-          opposition,
-          round,
-          player1Number: players[0].number || null,
-          player1Name:   players[0].name   || null,
-          player2Number: players[1].number || null,
-          player2Name:   players[1].name   || null,
-          player3Number: players[2].number || null,
-          player3Name:   players[2].name   || null,
-          player4Number: players[3].number || null,
-          player4Name:   players[3].name   || null,
-          player5Number: players[4].number || null,
-          player5Name:   players[4].name   || null,
+          grade:       competition === "SFL" ? gradeName : null,
+          homeTeam:    selectedFixture.homeTeamName,
+          opposition:  selectedFixture.awayTeamName,
+          round:       selectedFixture.roundName,
+          player1Number: players[0].number || null, player1Name: players[0].name || null,
+          player2Number: players[1].number || null, player2Name: players[1].name || null,
+          player3Number: players[2].number || null, player3Name: players[2].name || null,
+          player4Number: players[3].number || null, player4Name: players[3].name || null,
+          player5Number: players[4].number || null, player5Name: players[4].name || null,
           submitterName: submitterName.trim(),
           signatureDataUrl: initials.trim(),
         }),
       });
-
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Submission failed.");
       setSubmitted(true);
@@ -264,196 +282,176 @@ export default function BestAndFairestPage() {
   }
 
   function handleReset() {
-    setMatchDate(getTasmanianDate());
-    const first   = leagueData[0];
-    const firstAg = first?.ageGroups[0];
-    const firstGr = firstAg?.grades[0];
-    setCompetition(first?.name ?? "");
-    setAgeGroup(firstAg?.name ?? "");
-    setGrade(firstGr?.name ?? "");
-    setRound(ROUND_OPTIONS[0]);
-    setHomeTeam("");
-    setOpposition("");
-    setFixtureFound(null);
-    setPlayers(Array.from({ length: 5 }, () => ({ number: "", name: "" })));
+    setSelectedFixture(null);
+    setPlayers(emptyPlayers());
     setSubmitterName("");
     setInitials("");
     setSubmitted(false);
     setError(null);
+    loadFixtures();
   }
 
-  // ── Data loading / error guard ────────────────────────────────────────────
-  if (dataLoading) {
+  if (fixturesLoading) {
     return (
       <div className={styles.page}>
         <div className={styles.card}>
           <div className={styles.header}>
-            <p className={styles.sub} style={{ padding: "24px" }}>Loading…</p>
+            <p className={styles.sub} style={{ padding: "24px" }}>Loading matches…</p>
           </div>
         </div>
       </div>
     );
   }
 
-  if (dataError) {
+  if (fixturesError) {
     return (
       <div className={styles.page}>
         <div className={styles.card}>
-          <div className={styles.errorBanner} style={{ margin: 24 }}>{dataError}</div>
+          <div className={styles.errorBanner} style={{ margin: 24 }}>{fixturesError}</div>
         </div>
       </div>
     );
   }
 
-  // ── Success screen ──────────────────────────────────────────────────────────
-  if (submitted) {
+  if (submitted && selectedFixture) {
     return (
       <div className={styles.page}>
         <div className={`${styles.card} ${styles.successCard}`}>
           <div className={styles.successIcon}>✓</div>
           <h2 className={styles.successTitle}>Votes Submitted!</h2>
           <p className={styles.successSub}>
-            Best &amp; Fairest votes for <strong>{homeTeam}</strong> vs{" "}
-            <strong>{opposition}</strong> on <strong>{matchDate}</strong> have been recorded.
+            Best &amp; Fairest votes for <strong>{selectedFixture.homeTeamName}</strong> vs{" "}
+            <strong>{selectedFixture.awayTeamName}</strong> on{" "}
+            <strong>{selectedFixture.matchDate}</strong> have been recorded.
           </p>
-          <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={handleReset}>
-            Submit Another
-          </button>
+          {availableFixtures.length > 1 ? (
+            <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={handleReset}>
+              Submit Another Match
+            </button>
+          ) : (
+            <p className={styles.sub} style={{ marginTop: 16 }}>No more matches to vote on.</p>
+          )}
         </div>
       </div>
     );
   }
 
-  // ── Form ────────────────────────────────────────────────────────────────────
+  const hasPlayerData = homePlayers.length > 0 || awayPlayers.length > 0;
+  const gradePretty = gradeName
+    .replace("SFL Premier League ", "")
+    .replace("SFL Community League ", "")
+    .replace("STJFL ", "");
+
+  const header = (
+    <div className={styles.header}>
+      <div>
+        <h1 className={styles.title}>Best &amp; Fairest Votes</h1>
+        <p className={styles.sub}>
+          {teamName} &mdash; {gradePretty}
+          {minsLeft !== null && (
+            <span style={{ marginLeft: 12, fontSize: 12, opacity: 0.6 }}>
+              (session expires in {minsLeft} min)
+            </span>
+          )}
+        </p>
+      </div>
+      <button
+        type="button"
+        className={`${styles.btn} ${styles.btnSecondary}`}
+        onClick={onLogout}
+        style={{ marginLeft: "auto", whiteSpace: "nowrap" }}
+      >
+        Change Team
+      </button>
+    </div>
+  );
+
+  // ── Step 1: Pick a match ──────────────────────────────────────────────────
+  if (!selectedFixture) {
+    if (availableFixtures.length === 0) {
+      return (
+        <div className={styles.page}>
+          <div className={styles.card}>
+            {header}
+            <div className={styles.formBody}>
+              <p className={styles.sub} style={{ padding: "8px 0 24px" }}>
+                No home matches available to vote on. Matches appear here once played and disappear after votes are submitted.
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className={styles.page}>
+        <div className={styles.card}>
+          {header}
+          <div className={styles.formBody}>
+            <section className={styles.section}>
+              <div className={styles.sectionTitle}>Select a Match</div>
+              <p className={styles.sectionHint}>Choose the home match you want to submit votes for.</p>
+              <div className={matchStyles.matchList}>
+                {availableFixtures.map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    className={matchStyles.matchCard}
+                    onClick={() => setSelectedFixture(f)}
+                  >
+                    <span className={matchStyles.matchRound}>{f.roundName}</span>
+                    <span className={matchStyles.matchTeams}>
+                      {f.homeTeamName} <span className={matchStyles.vs}>vs</span> {f.awayTeamName}
+                    </span>
+                    <span className={matchStyles.matchDate}>{f.matchDate}</span>
+                    {f.venueName && <span className={matchStyles.matchVenue}>{f.venueName}</span>}
+                  </button>
+                ))}
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step 2: Fill votes ────────────────────────────────────────────────────
   return (
     <div className={styles.page}>
       <div className={styles.card}>
-
-        {/* Header */}
-        <div className={styles.header}>
-          <div>
-            <h1 className={styles.title}>Best &amp; Fairest Votes</h1>
-            <p className={styles.sub}>
-              Complete and sign the voting form after each match.
-            </p>
-          </div>
-        </div>
-
+        {header}
         <form onSubmit={handleSubmit} className={styles.formBody}>
 
-          {/* ── Match Details ── */}
           <section className={styles.section}>
-            <div className={styles.sectionTitle}>Match Details</div>
-            {/* Row 1 — What game: Competition › Age Group › Grade */}
-            <div className={styles.fieldRow}>
-
-              <div className={`${styles.fieldGroup} ${styles.fieldGroupNarrow}`}>
-                <label className={styles.label} htmlFor="competition">Competition</label>
-                <Select
-                  id="competition"
-                  value={competition}
-                  onChange={handleCompetitionChange}
-                  options={leagueData.map((l) => l.name)}
-                  required
-                />
+            <div className={styles.sectionTitle}>Match</div>
+            <div className={matchStyles.selectedMatch}>
+              <div className={matchStyles.selectedMatchMain}>
+                <span className={matchStyles.matchRound}>{selectedFixture.roundName}</span>
+                <span className={matchStyles.matchTeams}>
+                  {selectedFixture.homeTeamName}{" "}
+                  <span className={matchStyles.vs}>vs</span>{" "}
+                  {selectedFixture.awayTeamName}
+                </span>
+                <span className={matchStyles.matchDate}>{selectedFixture.matchDate}</span>
               </div>
-
-              <div className={styles.fieldGroup}>
-                <label className={styles.label} htmlFor="ageGroup">Age Group</label>
-                <Select
-                  id="ageGroup"
-                  value={ageGroup}
-                  onChange={handleAgeGroupChange}
-                  options={currentAgeGroups.map((ag) => ag.name)}
-                  required
-                />
-              </div>
-
-              {showGrade && (
-                <div className={`${styles.fieldGroup} ${styles.fieldGroupWide}`}>
-                  <label className={styles.label} htmlFor="grade">Grade</label>
-                  <Select
-                    id="grade"
-                    value={grade}
-                    onChange={handleGradeChange}
-                    options={currentGrades.map((g) => g.name)}
-                    required
-                    triggerClassName={selectStyles.triggerWrap}
-                  />
-                </div>
-              )}
-
-            </div>
-
-            {/* Row 2 — When: Round + Date */}
-            <div className={styles.fieldRow}>
-
-              <div className={styles.fieldGroup}>
-                <label className={styles.label} htmlFor="round">Round</label>
-                <Select
-                  id="round"
-                  value={round}
-                  onChange={handleRoundChange}
-                  options={ROUND_OPTIONS}
-                  required
-                />
-              </div>
-
-              <div className={styles.fieldGroup}>
-                <label className={styles.label} htmlFor="matchDate">Date</label>
-                <input
-                  id="matchDate"
-                  type="date"
-                  className={styles.input}
-                  value={matchDate}
-                  onChange={(e) => setMatchDate(e.target.value)}
-                  required
-                />
-              </div>
-
-            </div>
-
-            {/* Row 3 — Who: Home Team + Opposition */}
-            <div className={styles.fieldRow}>
-
-              <div className={`${styles.fieldGroup} ${styles.fieldGroupHalf}`}>
-                <label className={styles.label} htmlFor="homeTeam">Home Team</label>
-                <Select
-                  id="homeTeam"
-                  value={homeTeam}
-                  onChange={handleHomeTeamChange}
-                  options={allTeams}
-                  required
-                />
-                {fixtureLoading && (
-                  <p className={styles.fieldHint}>Looking up opposition…</p>
-                )}
-                {fixtureFound && !fixtureLoading && (
-                  <p className={styles.fieldHint}>✓ Auto-filled: {fixtureFound}</p>
-                )}
-              </div>
-
-              <div className={`${styles.fieldGroup} ${styles.fieldGroupHalf}`}>
-                <label className={styles.label} htmlFor="opposition">Opposition</label>
-                <Select
-                  id="opposition"
-                  value={opposition}
-                  onChange={handleOppositionChange}
-                  options={oppositionTeams}
-                  required
-                />
-              </div>
-
+              <button
+                type="button"
+                className={`${styles.btn} ${styles.btnSecondary}`}
+                onClick={() => setSelectedFixture(null)}
+                style={{ fontSize: 13 }}
+              >
+                Change
+              </button>
             </div>
           </section>
 
           <section className={styles.section}>
             <div className={styles.sectionTitle}>Player Votes</div>
             <p className={styles.sectionHint}>
-              {gamePlayers.length > 0
-                ? "Type a jumper number or name to search players from both teams."
-                : playersLoading
-                ? "Loading players…"
+              {playersLoading
+                ? "Loading team players…"
+                : hasPlayerData
+                ? "Select your top 5 players from either team. [H] = Home, [A] = Away."
                 : "Enter the player number and name for each vote position."}
             </p>
             <div className={styles.tableWrap}>
@@ -474,12 +472,12 @@ export default function BestAndFairestPage() {
                         <PlayerInput
                           numberValue={p.number}
                           nameValue={p.name}
-                          players={gamePlayers}
+                          players={allGamePlayers}
                           onNumberChange={(v) => updatePlayer(i, "number", v)}
                           onNameChange={(v) => updatePlayer(i, "name", v)}
                           onSelect={(num, name) => {
                             updatePlayer(i, "number", num);
-                            updatePlayer(i, "name", name);
+                            updatePlayer(i, "name", name.replace(/^\[(H|A)\] /, ""));
                           }}
                         />
                       </td>
@@ -490,14 +488,10 @@ export default function BestAndFairestPage() {
             </div>
           </section>
 
-          {/* ── Sign-off ── */}
           <section className={styles.section}>
             <div className={styles.sectionTitle}>Sign Off</div>
-
             <div className={styles.fieldGroup} style={{ maxWidth: 360, marginBottom: 20 }}>
-              <label className={styles.label} htmlFor="submitterName">
-                Your Name
-              </label>
+              <label className={styles.label} htmlFor="submitterName">Your Name</label>
               <input
                 id="submitterName"
                 type="text"
@@ -508,7 +502,6 @@ export default function BestAndFairestPage() {
                 required
               />
             </div>
-
             <div className={styles.fieldGroup} style={{ maxWidth: 200 }}>
               <label className={styles.label} htmlFor="initials">Initials</label>
               <input
@@ -524,12 +517,8 @@ export default function BestAndFairestPage() {
             </div>
           </section>
 
-          {/* ── Error ── */}
-          {error && (
-            <div className={styles.errorBanner}>{error}</div>
-          )}
+          {error && <div className={styles.errorBanner}>{error}</div>}
 
-          {/* ── Submit ── */}
           <div className={styles.formFooter}>
             <button
               type="submit"
@@ -539,7 +528,6 @@ export default function BestAndFairestPage() {
               {submitting ? "Submitting…" : "Submit Votes"}
             </button>
           </div>
-
         </form>
       </div>
     </div>
