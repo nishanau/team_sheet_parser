@@ -153,8 +153,7 @@ function BestAndFairestForm({
   const [fixturesLoading,    setFixturesLoading]    = useState(true);
   const [fixturesError,      setFixturesError]      = useState<string | null>(null);
 
-  const [homePlayers,    setHomePlayers]    = useState<GamePlayer[]>([]);
-  const [awayPlayers,    setAwayPlayers]    = useState<GamePlayer[]>([]);
+  const [teamPlayers,   setTeamPlayers]   = useState<GamePlayer[]>([]);
   const [playersLoading, setPlayersLoading] = useState(false);
 
   const [players,       setPlayers]       = useState(emptyPlayers);
@@ -201,25 +200,19 @@ function BestAndFairestForm({
 
   useEffect(() => {
     setPlayers(emptyPlayers());
-    setHomePlayers([]);
-    setAwayPlayers([]);
+    setTeamPlayers([]);
   }, [selectedFixture]);
 
   useEffect(() => {
     if (!selectedFixture) return;
     setPlayersLoading(true);
-    const { id, homeTeamName, awayTeamName } = selectedFixture;
-    Promise.all([
-      fetch(`/api/game-players?gameId=${encodeURIComponent(id)}&teamName=${encodeURIComponent(homeTeamName)}`).then((r) => r.json()),
-      fetch(`/api/game-players?gameId=${encodeURIComponent(id)}&teamName=${encodeURIComponent(awayTeamName)}`).then((r) => r.json()),
-    ])
-      .then(([homeData, awayData]) => {
-        setHomePlayers((homeData as { players: GamePlayer[] }).players ?? []);
-        setAwayPlayers((awayData as { players: GamePlayer[] }).players ?? []);
-      })
-      .catch(() => { setHomePlayers([]); setAwayPlayers([]); })
+    const { id } = selectedFixture;
+    fetch(`/api/game-players?gameId=${encodeURIComponent(id)}&teamName=${encodeURIComponent(teamName)}`)
+      .then((r) => r.json())
+      .then((data) => setTeamPlayers((data as { players: GamePlayer[] }).players ?? []))
+      .catch(() => setTeamPlayers([]))
       .finally(() => setPlayersLoading(false));
-  }, [selectedFixture]);
+  }, [selectedFixture, teamName]);
 
   function emptyPlayers() {
     return Array.from({ length: 5 }, () => ({ number: "", name: "" }));
@@ -233,10 +226,7 @@ function BestAndFairestForm({
     });
   }
 
-  const allGamePlayers: GamePlayer[] = [
-    ...homePlayers.map((p) => ({ ...p, firstName: `[H] ${p.firstName}` })),
-    ...awayPlayers.map((p) => ({ ...p, firstName: `[A] ${p.firstName}` })),
-  ];
+  const allGamePlayers: GamePlayer[] = teamPlayers;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -355,7 +345,7 @@ function BestAndFairestForm({
     );
   }
 
-  const hasPlayerData = homePlayers.length > 0 || awayPlayers.length > 0;
+  const hasPlayerData = teamPlayers.length > 0;
   const gradePretty = gradeName
     .replace("SFL Premier League ", "")
     .replace("SFL Community League ", "")

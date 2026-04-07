@@ -131,8 +131,8 @@ export async function GET(req: NextRequest) {
   const game = (data as { data?: { discoverGame?: Record<string, unknown> } })?.data?.discoverGame;
   if (!game) return NextResponse.json({ players: [], source: "none" });
 
-  const homeName = ((game.home as Record<string, unknown>)?.name as string | undefined) ?? "";
-  const awayName = ((game.away as Record<string, unknown>)?.name as string | undefined) ?? "";
+  const homeName = (((game.home as Record<string, unknown>)?.name as string | undefined) ?? "").replace(/\s{2,}/g, " ").trim();
+  const awayName = (((game.away as Record<string, unknown>)?.name as string | undefined) ?? "").replace(/\s{2,}/g, " ").trim();
   const stats    = game.statistics as Record<string, { players: Record<string, unknown>[] }>;
   const tn       = teamName.toLowerCase();
 
@@ -149,6 +149,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (rawPlayers.length === 0) {
+    logger.info("[game-players] no players found in PlayHQ response", { category: "api", gameId, teamName, homeName, awayName });
     return NextResponse.json({ players: [], source: "none" });
   }
 
@@ -165,6 +166,17 @@ export async function GET(req: NextRequest) {
   });
 
   // 3. Upsert into team_players + record the fetch (fire-and-forget)
+  logger.info("[game-players] fetched from PlayHQ", {
+    category: "api",
+    gameId,
+    teamName,
+    playerCount: parsed.length,
+    players: parsed.map((p) => `#${p.playerNumber ?? "?"} ${p.firstName} ${p.lastName}`.trim()),
+  });
+  console.log(
+    `[game-players] ${teamName} — ${parsed.length} players:\n` +
+    parsed.map((p) => `  #${p.playerNumber ?? "?"} ${p.firstName} ${p.lastName}`).join("\n")
+  );
   // One SELECT to load all existing players for the team, then bulk insert/update
   // instead of N+1 round-trips to Turso.
   (async () => {

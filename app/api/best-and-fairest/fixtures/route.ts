@@ -95,8 +95,8 @@ export async function GET(req: NextRequest) {
       const underCap  = usedSlots < SUBMISSION_LIMIT;
 
       let blockReason: string | null = null;
-      if (!inWindow)  blockReason = "Outside voting window (match day and the day after only)";
-      else if (!underCap) blockReason = `Maximum ${SUBMISSION_LIMIT} submissions already reached for this round`;
+      if (!inWindow)       blockReason = "Outside voting window (match day and the day after only)";
+      else if (!underCap)  blockReason = `Maximum ${SUBMISSION_LIMIT} submissions already reached for this round`;
 
       return { ...f, canVote: blockReason === null, blockReason };
     });
