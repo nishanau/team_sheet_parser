@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { bestAndFairest, leagues, teams, teamAccessCodes } from "@/db/schema";
-import { and, eq, desc } from "drizzle-orm";
+import { bestAndFairest, leagues, teams, teamAccessCodes, teamPlayers } from "@/db/schema";
+import { and, eq, desc, count } from "drizzle-orm";
 import { ROUND_OPTIONS as ROUND_OPTIONS_ARR, AGE_GROUPS, GRADE_MAP, STJFL_TEAMS } from "@/lib/constants";
 import { logger } from "@/lib/logger";
 
@@ -11,6 +11,16 @@ const NUMBER_RE   = /^\d{1,4}$/;
 const INITIALS_RE = /^[A-Za-z]{1,5}$/;
 
 const ROUND_OPTIONS = new Set(ROUND_OPTIONS_ARR);
+
+/** Returns today's date string in Tasmania timezone (YYYY-MM-DD). */
+function getTasDate(offsetDays = 0): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Hobart",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(d);
+}
 
 function str(v: unknown, max: number): string | null {
   if (typeof v !== "string") return null;
@@ -98,8 +108,6 @@ export async function POST(req: NextRequest) {
     if (homeTeam === opposition)         return err("Home team and opposition cannot be the same.");
 
     // ── Access code re-validation ─────────────────────────────────────────────
-    // The code is re-checked on every submission so a deactivated code is rejected
-    // even if the browser still has an unexpired session.
     const [codeRow] = await db
       .select({ teamName: teamAccessCodes.teamName, gradeName: teamAccessCodes.gradeName })
       .from(teamAccessCodes)
@@ -115,41 +123,54 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid access code." }, { status: 401 });
     }
 
-    // For SFL grades: code must match homeTeam + grade exactly
-    // For STJFL: grade column is null on the form, so we only check teamName
+    // submittingTeam = the team identified by the access code
+    const submittingTeam = codeRow.teamName;
+
+    // For SFL: code must match grade exactly
     if (competition === "SFL") {
-      if (codeRow.teamName !== homeTeam || codeRow.gradeName !== grade) {
+      if (codeRow.gradeName !== grade) {
         return NextResponse.json(
-          { error: "Access code does not match the selected team and grade." },
-          { status: 401 }
-        );
-      }
-    } else {
-      if (codeRow.teamName !== homeTeam) {
-        return NextResponse.json(
-          { error: "Access code does not match the selected team." },
+          { error: "Access code does not match the selected grade." },
           { status: 401 }
         );
       }
     }
 
-    // ── Per-game deduplication (one submission per homeTeam per game) ─────────
-    const [existing] = await db
-      .select({ id: bestAndFairest.id })
+    // The submitting team must be a participant in this game (home or away)
+    if (submittingTeam !== homeTeam && submittingTeam !== opposition) {
+      return NextResponse.json(
+        { error: "Your team is not a participant in this match." },
+        { status: 401 }
+      );
+    }
+
+    // ── Match date window: today or tomorrow (Tasmania time) ────────────────
+    const today    = getTasDate(0);
+    const tomorrow = getTasDate(1);
+    if (matchDate !== today && matchDate !== tomorrow) {
+      return NextResponse.json(
+        { error: "Votes can only be submitted for matches played today or tomorrow." },
+        { status: 422 }
+      );
+    }
+
+    // ── Max 3 submissions per team per round ──────────────────────────────────
+    const SUBMISSION_LIMIT = 3;
+    const [countRow] = await db
+      .select({ n: count() })
       .from(bestAndFairest)
       .where(
         and(
           eq(bestAndFairest.competition, competition),
           eq(bestAndFairest.grade,       grade ?? ""),
           eq(bestAndFairest.round,       round),
-          eq(bestAndFairest.homeTeam,    homeTeam),
+          eq(bestAndFairest.homeTeam,    submittingTeam), // homeTeam col = submitting team
         )
-      )
-      .limit(1);
+      );
 
-    if (existing) {
+    if ((countRow?.n ?? 0) >= SUBMISSION_LIMIT) {
       return NextResponse.json(
-        { error: `Votes for ${homeTeam} in Round ${round} have already been submitted.` },
+        { error: `${submittingTeam} has already submitted the maximum ${SUBMISSION_LIMIT} votes for ${round}.` },
         { status: 409 }
       );
     }
@@ -175,13 +196,30 @@ export async function POST(req: NextRequest) {
       return err("Duplicate player numbers are not allowed.");
     }
 
+    // ── Players must be from the submitting team's roster ────────────────────
+    const rosterRows = await db
+      .select({ playerNumber: teamPlayers.playerNumber })
+      .from(teamPlayers)
+      .where(eq(teamPlayers.teamName, submittingTeam));
+
+    if (rosterRows.length > 0) {
+      const rosterNums = new Set(rosterRows.map((r) => r.playerNumber).filter(Boolean) as string[]);
+      const outsiders  = nums.filter((n) => !rosterNums.has(n));
+      if (outsiders.length > 0) {
+        return NextResponse.json(
+          { error: `Player number${outsiders.length > 1 ? "s" : ""} ${outsiders.join(", ")} are not on ${submittingTeam}'s roster. You may only vote for your own team's players.` },
+          { status: 422 }
+        );
+      }
+    }
+
     // ── Insert ────────────────────────────────────────────────────────────────
     const [inserted] = await db
       .insert(bestAndFairest)
       .values({
         competition, matchDate, ageGroup,
         grade:      grade ?? null,
-        homeTeam,
+        homeTeam:   submittingTeam, // the team identified by the access code
         opposition, round,
         player1Number: p1.num, player1Name: p1.name,
         player2Number: p2.num, player2Name: p2.name,

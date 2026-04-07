@@ -16,6 +16,8 @@ interface FixtureRow {
   homeTeamName: string;
   awayTeamName: string;
   venueName:    string | null;
+  canVote:      boolean;
+  blockReason:  string | null;
 }
 
 const VOTE_LABELS = ["5", "4", "3", "2", "1"];
@@ -49,7 +51,7 @@ function CodeGate({ onVerified }: { onVerified: (teamName: string, gradeName: st
       const res  = await fetch("/api/verify-code", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ accessCode: trimmed }),
+        body:    JSON.stringify({ accessCode: trimmed, formType: "bnf" }),
       });
       const data = await res.json() as { teamName?: string; gradeName?: string; error?: string };
       if (!res.ok) {
@@ -146,9 +148,10 @@ function BestAndFairestForm({
 
   const [selectedFixture, setSelectedFixture] = useState<FixtureRow | null>(null);
 
-  const [availableFixtures, setAvailableFixtures] = useState<FixtureRow[]>([]);
-  const [fixturesLoading,   setFixturesLoading]   = useState(true);
-  const [fixturesError,     setFixturesError]     = useState<string | null>(null);
+  const [availableFixtures,  setAvailableFixtures]  = useState<FixtureRow[]>([]);
+  const [submittedByRound,   setSubmittedByRound]   = useState<Record<string, number>>({});
+  const [fixturesLoading,    setFixturesLoading]    = useState(true);
+  const [fixturesError,      setFixturesError]      = useState<string | null>(null);
 
   const [homePlayers,    setHomePlayers]    = useState<GamePlayer[]>([]);
   const [awayPlayers,    setAwayPlayers]    = useState<GamePlayer[]>([]);
@@ -184,8 +187,13 @@ function BestAndFairestForm({
     )
       .then((r) => r.json())
       .then((data) => {
-        if (Array.isArray(data)) setAvailableFixtures(data as FixtureRow[]);
-        else setFixturesError((data as { error: string }).error ?? "Failed to load fixtures.");
+        if (data && typeof data === "object" && "fixtures" in data) {
+          const res = data as { fixtures: FixtureRow[]; submittedByRound: Record<string, number> };
+          setAvailableFixtures(res.fixtures);
+          setSubmittedByRound(res.submittedByRound);
+        } else {
+          setFixturesError((data as { error: string }).error ?? "Failed to load fixtures.");
+        }
       })
       .catch(() => setFixturesError("Failed to load fixtures. Please refresh."))
       .finally(() => setFixturesLoading(false));
@@ -274,6 +282,12 @@ function BestAndFairestForm({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Submission failed.");
       setSubmitted(true);
+      // Increment the server-seeded count for this round so the UI stays accurate
+      // without needing a round-trip to re-fetch fixtures.
+      setSubmittedByRound((prev) => ({
+        ...prev,
+        [selectedFixture.roundName]: (prev[selectedFixture.roundName] ?? 0) + 1,
+      }));
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -314,6 +328,8 @@ function BestAndFairestForm({
   }
 
   if (submitted && selectedFixture) {
+    const submitCount = submittedByRound[selectedFixture.roundName] ?? 0;
+    const remaining   = Math.max(0, 3 - submitCount);
     return (
       <div className={styles.page}>
         <div className={`${styles.card} ${styles.successCard}`}>
@@ -323,8 +339,11 @@ function BestAndFairestForm({
             Best &amp; Fairest votes for <strong>{selectedFixture.homeTeamName}</strong> vs{" "}
             <strong>{selectedFixture.awayTeamName}</strong> on{" "}
             <strong>{selectedFixture.matchDate}</strong> have been recorded.
+            {remaining > 0 && (
+              <> You have <strong>{remaining}</strong> submission{remaining !== 1 ? "s" : ""} remaining for this round.</>
+            )}
           </p>
-          {availableFixtures.length > 1 ? (
+          {remaining > 0 && availableFixtures.length > 1 ? (
             <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={handleReset}>
               Submit Another Match
             </button>
@@ -375,7 +394,7 @@ function BestAndFairestForm({
             {header}
             <div className={styles.formBody}>
               <p className={styles.sub} style={{ padding: "8px 0 24px" }}>
-                No home matches available to vote on. Matches appear here once played and disappear after votes are submitted.
+                No matches scheduled yet. Fixtures will appear here once they are available.
               </p>
             </div>
           </div>
@@ -390,14 +409,18 @@ function BestAndFairestForm({
           <div className={styles.formBody}>
             <section className={styles.section}>
               <div className={styles.sectionTitle}>Select a Match</div>
-              <p className={styles.sectionHint}>Choose the home match you want to submit votes for.</p>
+              <p className={styles.sectionHint}>
+                Matches you can vote on today or tomorrow are highlighted. Others are shown for reference.
+              </p>
               <div className={matchStyles.matchList}>
                 {availableFixtures.map((f) => (
                   <button
                     key={f.id}
                     type="button"
-                    className={matchStyles.matchCard}
-                    onClick={() => setSelectedFixture(f)}
+                    className={`${matchStyles.matchCard}${!f.canVote ? ` ${matchStyles.matchCardDisabled}` : ""}`}
+                    onClick={() => f.canVote && setSelectedFixture(f)}
+                    disabled={!f.canVote}
+                    title={f.blockReason ?? undefined}
                   >
                     <span className={matchStyles.matchRound}>{f.roundName}</span>
                     <span className={matchStyles.matchTeams}>
@@ -405,6 +428,9 @@ function BestAndFairestForm({
                     </span>
                     <span className={matchStyles.matchDate}>{f.matchDate}</span>
                     {f.venueName && <span className={matchStyles.matchVenue}>{f.venueName}</span>}
+                    {!f.canVote && f.blockReason && (
+                      <span className={matchStyles.matchBlock}>{f.blockReason}</span>
+                    )}
                   </button>
                 ))}
               </div>

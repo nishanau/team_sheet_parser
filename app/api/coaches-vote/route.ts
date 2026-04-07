@@ -66,6 +66,24 @@ export async function POST(req: NextRequest) {
     if (isNaN(new Date(matchDate).getTime())) return err("matchDate is not a valid date.");
     if (!INITIALS_RE.test(initials)) return err("initials must be letters only (max 5).");
 
+    // ── Date window: match day and the day after only (Tasmania time) ─────────
+    const tasDate = (offsetDays = 0) => {
+      const d = new Date();
+      d.setDate(d.getDate() + offsetDays);
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Australia/Hobart",
+        year: "numeric", month: "2-digit", day: "2-digit",
+      }).format(d);
+    };
+    const today    = tasDate(0);
+    const tomorrow = tasDate(1);
+    if (matchDate !== today && matchDate !== tomorrow) {
+      return NextResponse.json(
+        { error: "Votes can only be submitted on match day or the day after." },
+        { status: 422 }
+      );
+    }
+
     // ── Grade whitelist ───────────────────────────────────────────────────────
     if (!COACHES_VOTE_GRADE_SET.has(grade)) {
       return err(`Coaches Vote is only available for: ${COACHES_VOTE_GRADES.join(", ")}.`);
@@ -110,9 +128,7 @@ export async function POST(req: NextRequest) {
     if (!knownTeamNames.has(homeTeam))  return err(`Unknown home team: "${homeTeam}".`);
     if (!knownTeamNames.has(awayTeam))  return err(`Unknown away team: "${awayTeam}".`);
     if (homeTeam === awayTeam)          return err("Home team and away team cannot be the same.");
-    if (coachTeam !== homeTeam && coachTeam !== awayTeam) {
-      return err(`coachTeam must be either the home team or away team.`);
-    }
+    if (!knownTeamNames.has(coachTeam)) return err(`Unknown coachTeam: "${coachTeam}".`);
 
     // ── Player rows ───────────────────────────────────────────────────────────
     const playerFields = [1, 2, 3, 4, 5].map((n) => {

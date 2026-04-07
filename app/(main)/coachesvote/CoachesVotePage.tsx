@@ -18,6 +18,8 @@ interface FixtureRow {
   homeTeamName: string;
   awayTeamName: string;
   venueName:    string | null;
+  canVote:      boolean;
+  blockReason:  string | null;
 }
 
 const VOTE_LABELS = ["5", "4", "3", "2", "1"];
@@ -37,7 +39,7 @@ function CodeGate({ onVerified }: { onVerified: (teamName: string, gradeName: st
       const res = await fetch("/api/verify-code", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ accessCode: trimmed }),
+        body:    JSON.stringify({ accessCode: trimmed, formType: "cv" }),
       });
       const data = await res.json() as { teamName?: string; gradeName?: string; error?: string };
       if (!res.ok) {
@@ -164,9 +166,9 @@ function CoachesVoteForm({
       `/api/coaches-vote/fixtures?grade=${encodeURIComponent(grade)}&teamName=${encodeURIComponent(coachTeam)}`
     )
       .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data)) setAvailableFixtures(data as FixtureRow[]);
-        else setFixturesError((data as { error: string }).error ?? "Failed to load fixtures.");
+      .then((data: { fixtures?: FixtureRow[]; error?: string }) => {
+        if (data.fixtures) setAvailableFixtures(data.fixtures);
+        else setFixturesError(data.error ?? "Failed to load fixtures.");
       })
       .catch(() => setFixturesError("Failed to load fixtures. Please refresh."))
       .finally(() => setFixturesLoading(false));
@@ -272,7 +274,7 @@ function CoachesVoteForm({
       `/api/coaches-vote/fixtures?grade=${encodeURIComponent(grade)}&teamName=${encodeURIComponent(coachTeam)}`
     )
       .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data)) setAvailableFixtures(data as FixtureRow[]); })
+      .then((data: { fixtures?: FixtureRow[] }) => { if (data.fixtures) setAvailableFixtures(data.fixtures); })
       .catch(() => {})
       .finally(() => setFixturesLoading(false));
   }
@@ -356,7 +358,7 @@ function CoachesVoteForm({
             {header}
             <div className={styles.formBody}>
               <p className={styles.sub} style={{ padding: "8px 0 24px" }}>
-                No completed matches available to vote on. Matches appear here once played and will disappear after votes are submitted.
+                No matches scheduled yet. Fixtures will appear here once they are available.
               </p>
             </div>
           </div>
@@ -377,8 +379,10 @@ function CoachesVoteForm({
                   <button
                     key={f.id}
                     type="button"
-                    className={matchStyles.matchCard}
-                    onClick={() => setSelectedFixture(f)}
+                    className={`${matchStyles.matchCard}${f.canVote ? "" : " " + matchStyles.matchCardDisabled}`}
+                    onClick={() => f.canVote && setSelectedFixture(f)}
+                    disabled={!f.canVote}
+                    title={f.blockReason ?? undefined}
                   >
                     <span className={matchStyles.matchRound}>{f.roundName}</span>
                     <span className={matchStyles.matchTeams}>
@@ -386,6 +390,7 @@ function CoachesVoteForm({
                     </span>
                     <span className={matchStyles.matchDate}>{f.matchDate}</span>
                     {f.venueName && <span className={matchStyles.matchVenue}>{f.venueName}</span>}
+                    {f.blockReason && <span className={matchStyles.matchBlock}>{f.blockReason}</span>}
                   </button>
                 ))}
               </div>

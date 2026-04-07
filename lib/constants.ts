@@ -4,17 +4,13 @@
 
 // ─── Round options ─────────────────────────────────────────────────────────
 export const ROUND_OPTIONS = [
-  ...Array.from({ length: 22 }, (_, i) => `Round ${i + 1}`),
-  "Finals Week 1",
-  "Finals Week 2",
-  "Finals Week 3",
-  "Grand Final",
+  ...Array.from({ length: 22 }, (_, i) => `Round ${i + 1}`)
 ];
 
 // ─── Age groups per competition ────────────────────────────────────────────
 export const AGE_GROUPS: Record<string, string[]> = {
   SFL:   ["Senior Men", "Reserves Men", "U18 Men", "Senior Women"],
-  STJFL: ["U13 Boys", "U14 Girls", "U14 Boys", "U15 Boys", "U16 Girls"],
+  STJFL: ["U13 Boys Group A", "U13 Boys Group B", "U14 Boys", "U14 Girls", "U15 Boys", "U16 Girls"],
 };
 
 // ─── Grade names (from PlayHQ) per competition + age group ────────────────
@@ -28,11 +24,12 @@ export const GRADE_MAP: Record<string, string[]> = {
   "SFL::Senior Women": ["SFL Premier League Senior Women", "SFL Community League Senior Women"],
 
   // STJFL — no grade sub-division used in the form
-  "STJFL::U13 Boys":  [],
-  "STJFL::U14 Girls": [],
-  "STJFL::U14 Boys":  [],
-  "STJFL::U15 Boys":  [],
-  "STJFL::U16 Girls": [],
+  "STJFL::U13 Boys Group A": [],
+  "STJFL::U13 Boys Group B": [],
+  "STJFL::U14 Boys":         [],
+  "STJFL::U14 Girls":        [],
+  "STJFL::U15 Boys":         [],
+  "STJFL::U16 Girls":        [],
 };
 
 // ─── STJFL teams (hardcoded until season is active on PlayHQ) ─────────────
@@ -56,6 +53,32 @@ export const STJFL_TEAMS = [
   "Triabunna Roos JFC",
 ];
 
+// ─── Best & Fairest — allowed grades ──────────────────────────────────────
+// Only teams in these grades may submit BnF votes.
+// Edit this list when eligible grades change.
+export const BNF_GRADES = new Set([
+  // SFL
+  "SFL Community League Reserves Men",
+  "SFL Community League U18 Boys",
+  "SFL Premier League Senior Men",
+  "SFL Premier League Senior Women",
+  // STJFL
+  "2026 STJFL U13 Boys Group A",
+  "2026 STJFL U13 Boys Group B",
+  "2026 STJFL U14 Boys",
+  "2026 STJFL U14 Girls",
+  "2026 STJFL U15 Boys",
+  "2026 STJFL U16 Girls",
+]);
+
+// ─── Coaches Vote — allowed grades ────────────────────────────────────────
+// Only teams in these grades may submit Coaches votes.
+// Edit this list when eligible grades change.
+export const CV_GRADES = new Set([
+  "SFL Community League Senior Men",
+  "SFL Community League Senior Women",
+]);
+
 // ─── Helper: all valid grades across all competitions ─────────────────────
 export const ALL_GRADE_NAMES = new Set(Object.values(GRADE_MAP).flat());
 
@@ -69,14 +92,8 @@ export function ageGroupForGrade(competition: string, gradeName: string): string
   return null;
 }
 
-// ─── Allowed SFL grades (used by sync and admin fixtures filter) ───────────
-export const ALLOWED_GRADES = new Set([
-  "SFL Premier League Senior Men",
-  "SFL Community League Senior Men",
-  "SFL Premier League Reserves Men",
-  "SFL Community League Reserves Men",
-  "SFL Premier League U18 Boys",
-  "SFL Community League U18 Boys",
-  "SFL Premier League Senior Women",
-  "SFL Community League Senior Women",
-]);
+// ─── Allowed grades for sync (SFL + STJFL) ───────────────────────────────────
+// Derived from BNF_GRADES + CV_GRADES — only grades eligible for voting are
+// synced from PlayHQ. Add grades to BNF_GRADES or CV_GRADES above to include
+// them in the sync.
+export const ALLOWED_GRADES = new Set([...BNF_GRADES, ...CV_GRADES]);

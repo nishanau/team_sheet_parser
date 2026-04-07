@@ -223,8 +223,8 @@ export async function runSync(log: string[]): Promise<void> {
         await sleep(300);
 
         for (const grade of seasonData.discoverSeason?.grades ?? []) {
-          // For SFL, only sync ALLOWED_GRADES; for STJFL, sync all grades
-          if (orgId === SFL_ORG_ID && !ALLOWED_GRADES.has(grade.name)) continue;
+          // Only sync grades that are eligible for voting (BNF_GRADES ∪ CV_GRADES)
+          if (!ALLOWED_GRADES.has(grade.name)) continue;
           gradeEntries.push({ gradeId: grade.id, gradeName: grade.name, orgId });
           log.push(`  [${label}] Grade found: ${grade.name} (${grade.id})`);
         }
@@ -294,8 +294,8 @@ export async function runSync(log: string[]): Promise<void> {
 
     for (const round of data.discoverTeamFixture ?? []) {
       const gn = round.grade?.name ?? "";
-      // For SFL, filter to ALLOWED_GRADES; for STJFL, accept all
-      if (orgId === SFL_ORG_ID && !ALLOWED_GRADES.has(gn)) continue;
+      // Only accept grades eligible for voting (BNF_GRADES ∪ CV_GRADES)
+      if (!ALLOWED_GRADES.has(gn)) continue;
 
       for (const game of round.fixture?.games ?? []) {
         if (!game.id) continue;
@@ -354,17 +354,10 @@ export async function runSync(log: string[]): Promise<void> {
   logger.info("[sync] step4 complete", { category: "sync", teamsInserted: teamInserts.length });
 
   // ── Step 5: Write fixtures to DB ──────────────────────────────────────────
-  // Delete and replace SFL fixtures by grade name
-  const sflGradeList = [...ALLOWED_GRADES];
-  const sflPh = sflGradeList.map(() => "?").join(",");
-  await client.execute({ sql: `DELETE FROM fixtures WHERE grade_name IN (${sflPh})`, args: sflGradeList });
-
-  // Delete STJFL fixtures by collecting grade names found in this sync
-  const stjflGradeNames = [...new Set(stjflGames.map(g => g.gradeName))];
-  if (stjflGradeNames.length > 0) {
-    const stjflPh = stjflGradeNames.map(() => "?").join(",");
-    await client.execute({ sql: `DELETE FROM fixtures WHERE grade_name IN (${stjflPh})`, args: stjflGradeNames });
-  }
+  // Delete all fixtures for every grade in the allowlist (covers both SFL and STJFL)
+  const allGradeList = [...ALLOWED_GRADES];
+  const allGradePh = allGradeList.map(() => "?").join(",");
+  await client.execute({ sql: `DELETE FROM fixtures WHERE grade_name IN (${allGradePh})`, args: allGradeList });
 
   const fixtureInserts: { sql: string; args: (string | null)[] }[] = [];
   for (const g of allGames.values()) {
@@ -438,10 +431,7 @@ export async function runSync(log: string[]): Promise<void> {
 
     // Link each team to this club by (name, grade_name) — batched in one round-trip
     const teamUpdates = (data.discoverTeams ?? [])
-      .filter((team) => {
-        const gn = team.grade?.name ?? "";
-        return isStjfl || ALLOWED_GRADES.has(gn);
-      })
+      .filter((team) => ALLOWED_GRADES.has(team.grade?.name ?? ""))
       .map((team) => ({
         sql:  "UPDATE teams SET club_id = ? WHERE name = ? AND grade_name = ?",
         args: [clubId, team.name, team.grade?.name ?? ""] as (string | number)[],
