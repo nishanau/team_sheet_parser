@@ -22,6 +22,20 @@
       "when": 1775101603749,
       "tag": "0002_absent_lifeguard",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1775615801369,
+      "tag": "0003_early_stellaris",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1775622083987,
+      "tag": "0004_broken_demogoblin",
+      "breakpoints": true
     }
   ]
 }

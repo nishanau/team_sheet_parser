@@ -62,6 +62,8 @@ export const BNF_GRADES = new Set([
   "SFL Community League U18 Boys",
   "SFL Premier League Senior Men",
   "SFL Premier League Senior Women",
+  "SFL Community League Senior Men",
+  "SFL Community League Senior Women",
   // STJFL
   "2026 STJFL U13 Boys Group A",
   "2026 STJFL U13 Boys Group B",
@@ -76,7 +78,6 @@ export const BNF_GRADES = new Set([
 // Edit this list when eligible grades change.
 export const CV_GRADES = new Set([
   "SFL Community League Senior Men",
-  "SFL Community League Senior Women",
 ]);
 
 // ─── Helper: all valid grades across all competitions ─────────────────────

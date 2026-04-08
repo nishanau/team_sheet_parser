@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `team_access_codes_code_unique` ON `team_access_codes` (`code`);

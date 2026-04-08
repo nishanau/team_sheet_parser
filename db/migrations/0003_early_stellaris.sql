@@ -1,0 +1,1 @@
+DROP INDEX `team_access_codes_code_unique`;
