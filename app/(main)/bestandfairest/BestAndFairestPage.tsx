@@ -30,8 +30,9 @@ function parseGrade(gradeName: string): { competition: string; ageGroup: string 
     const ag = knownAgeGroups.find((a) => afterSfl.endsWith(a)) ?? afterSfl;
     return { competition: "SFL", ageGroup: ag };
   }
-  if (gradeName.startsWith("STJFL ")) {
-    return { competition: "STJFL", ageGroup: gradeName.slice(6) };
+  const stjflIdx = gradeName.indexOf("STJFL ");
+  if (stjflIdx !== -1) {
+    return { competition: "STJFL", ageGroup: gradeName.slice(stjflIdx + 6) };
   }
   return { competition: "SFL", ageGroup: gradeName };
 }
