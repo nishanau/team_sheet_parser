@@ -153,6 +153,17 @@ function CoachesVoteForm({
   const [players, setPlayers] = useState(
     Array.from({ length: 5 }, () => ({ number: "", name: "" }))
   );
+
+  // Build a Set of already-selected jumper numbers, excluding the current row
+  function excludeNumbers(currentIdx: number): Set<string> {
+    const selected = new Set<string>();
+    for (let i = 0; i < players.length; i++) {
+      if (i !== currentIdx && players[i].number.trim()) {
+        selected.add(players[i].number.trim());
+      }
+    }
+    return selected;
+  }
   const [submitterName, setSubmitterName] = useState("");
   const [initials, setInitials]           = useState("");
   const [submitting, setSubmitting]       = useState(false);
@@ -440,7 +451,7 @@ function CoachesVoteForm({
               {playersLoading
                 ? "Loading team players…"
                 : hasPlayerData
-                ? "Select your top 5 players from either team. [H] = Home team, [A] = Away team."
+                ? "Select your top 5 players from either team. [H] = Home, [A] = Away."
                 : "Enter the player number and name for each vote position."}
             </p>
             <div className={styles.tableWrap}>
@@ -462,6 +473,7 @@ function CoachesVoteForm({
                           numberValue={p.number}
                           nameValue={p.name}
                           players={allGamePlayers}
+                          excludeNumbers={excludeNumbers(i)}
                           onNumberChange={(v) => updatePlayer(i, "number", v)}
                           onNameChange={(v) => updatePlayer(i, "name", v)}
                           onSelect={(num, name) => {

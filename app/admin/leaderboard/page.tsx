@@ -25,8 +25,8 @@ type PivotRow = {
 };
 
 type ApiResponse =
-  | { mode: "round"; rows: RoundRow[]; rounds: string[] }
-  | { mode: "pivot"; rows: PivotRow[]; rounds: string[] };
+  | { mode: "round"; rows: RoundRow[]; rounds: string[]; scopedGrades?: string[] }
+  | { mode: "pivot"; rows: PivotRow[]; rounds: string[]; scopedGrades?: string[] };
 
 const COMPETITIONS = ["SFL", "STJFL"];
 
@@ -73,22 +73,38 @@ export default function LeaderboardPage() {
   const [round, setRound] = useState("all");
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [scopedGrades, setScopedGrades] = useState<Set<string> | null>(null);
 
-  const grades = allGradesFor(competition);
+  // All grades for the selected competition, narrowed for club admins
+  const allGrades = allGradesFor(competition);
+  const grades = scopedGrades ? allGrades.filter((g) => scopedGrades.has(g)) : allGrades;
 
-  useEffect(() => {
-    if (grades.length > 0 && !grades.includes(grade)) setGrade(grades[0]);
-  }, [competition]);
+  // Reset grade when competition changes — done in the setter, not an effect
+  function handleCompetitionChange(val: string) {
+    setCompetition(val);
+    setGrade("");
+  }
 
   useEffect(() => {
     if (!grade) return;
     const params = new URLSearchParams({ type: tab, competition, round });
-    if (grade) params.set("grade", grade);
-    setLoading(true);
-    fetch(`/api/admin/leaderboard?${params}`)
-      .then((r) => r.json())
-      .then(setData)
-      .finally(() => setLoading(false));
+    params.set("grade", grade);
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const res: ApiResponse = await fetch(`/api/admin/leaderboard?${params}`).then((r) => r.json());
+        if (cancelled) return;
+        setData(res);
+        if (res.scopedGrades && !scopedGrades) {
+          setScopedGrades(new Set(res.scopedGrades));
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, competition, grade, round]);
 
   const isEmpty = !data || data.rows.length === 0;
@@ -127,9 +143,9 @@ export default function LeaderboardPage() {
 
       <div className={styles.filters}>
         {tab === "bf" && (
-          <Select value={competition} onChange={setCompetition} options={COMPETITIONS} />
+          <Select value={competition} onChange={handleCompetitionChange} options={COMPETITIONS} />
         )}
-        <Select value={grade} onChange={setGrade} options={grades} />
+        <Select value={grade} onChange={setGrade} options={grades} placeholder="Select Grade" className={styles.gradeSelect} triggerClassName={styles.gradeTrigger} />
         <Select value={round} onChange={setRound} options={["all", ...ROUND_OPTIONS]} />
       </div>
 

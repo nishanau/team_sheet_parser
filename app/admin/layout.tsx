@@ -8,7 +8,6 @@ import styles from "./layout.module.css";
 const NAV = [
   { href: "/admin/leaderboard",  label: "Leaderboard",  superadminOnly: false },
   { href: "/admin/access-codes", label: "Access Codes", superadminOnly: true  },
-  { href: "/admin/alerts",       label: "Alerts",       superadminOnly: false },
   { href: "/admin/fixtures",     label: "Fixtures",     superadminOnly: true  },
   { href: "/admin/users",        label: "Users",        superadminOnly: true  },
   { href: "/admin/sync",         label: "Sync",         superadminOnly: true  },

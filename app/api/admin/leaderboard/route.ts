@@ -3,7 +3,7 @@ import { and, eq, inArray } from "drizzle-orm";
 
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { bestAndFairest, coachesVotes, teams } from "@/db/schema";
+import { bestAndFairest, coachesVotes, teams, teamPlayers } from "@/db/schema";
 import { ROUND_OPTIONS } from "@/lib/constants";
 import { logger } from "@/lib/logger";
 
@@ -14,30 +14,45 @@ type VoteEntry = { playerName: string; playerNumber: string | null; team: string
 type LeaderboardRow = { rank: number; playerName: string; playerNumber: string | null; team: string; roundVotes: number; totalVotes: number };
 type PivotRow = { rank: number; playerName: string; playerNumber: string | null; team: string; roundBreakdown: Record<string, number>; totalVotes: number };
 
-function extractVotes(
-  rows: { player1Name: string | null; player1Number: string | null; player2Name: string | null; player2Number: string | null; player3Name: string | null; player3Number: string | null; player4Name: string | null; player4Number: string | null; player5Name: string | null; player5Number: string | null; homeTeam?: string | null; coachTeam?: string | null; round: string }[],
-  teamField: "homeTeam" | "coachTeam"
-): VoteEntry[] {
-  const result: VoteEntry[] = [];
-  const playerFields = [
-    ["player1Name", "player1Number"],
-    ["player2Name", "player2Number"],
-    ["player3Name", "player3Number"],
-    ["player4Name", "player4Number"],
-    ["player5Name", "player5Number"],
-  ] as const;
+const PLAYER_FIELDS = [
+  ["player1Name", "player1Number"],
+  ["player2Name", "player2Number"],
+  ["player3Name", "player3Number"],
+  ["player4Name", "player4Number"],
+  ["player5Name", "player5Number"],
+] as const;
 
+type VoteRow = {
+  player1Name: string | null; player1Number: string | null;
+  player2Name: string | null; player2Number: string | null;
+  player3Name: string | null; player3Number: string | null;
+  player4Name: string | null; player4Number: string | null;
+  player5Name: string | null; player5Number: string | null;
+  round: string;
+};
+
+/** Extract all (playerName, playerNumber, votes, round) from a set of vote rows.
+ *  `team` is left as an empty string here — it is resolved later via teamPlayers lookup. */
+function extractVotes(rows: VoteRow[]): VoteEntry[] {
+  const result: VoteEntry[] = [];
   for (const row of rows) {
-    const team = (teamField === "homeTeam" ? row.homeTeam : row.coachTeam) ?? "";
     for (let i = 0; i < 5; i++) {
-      const [nameKey, numKey] = playerFields[i];
+      const [nameKey, numKey] = PLAYER_FIELDS[i];
       const name = row[nameKey];
       if (!name) continue;
-      // Key on name + number + team so same name but different number = different player
-      result.push({ playerName: name, playerNumber: row[numKey] ?? null, team, votes: VOTE_WEIGHTS[i], round: row.round });
+      result.push({ playerName: name, playerNumber: row[numKey] ?? null, team: "", votes: VOTE_WEIGHTS[i], round: row.round });
     }
   }
   return result;
+}
+
+/** Resolve the team for each entry using a roster map ("number::fullName" → teamName).
+ *  Entries whose player cannot be matched are assigned team = "". */
+function resolveTeams(entries: VoteEntry[], roster: Map<string, string>): VoteEntry[] {
+  return entries.map((e) => ({
+    ...e,
+    team: roster.get(`${e.playerNumber ?? ""}::${e.playerName.trim().toLowerCase()}`) ?? "",
+  }));
 }
 
 // Unique key: name + number + team (number differentiates same-name players)
@@ -102,41 +117,93 @@ export async function GET(req: NextRequest) {
   });
 
   try {
-    // Club admin: get their team names
+    console.log("[leaderboard] session.user:", JSON.stringify(session.user));
+
+    // Club admin: get their team names + grades (scoped by clubId only — leagueId may be null)
     let scopedTeamNames: string[] | null = null;
-    if (session.user.role === "club_admin" && session.user.clubId && session.user.leagueId) {
+    let scopedGrades: string[] | null = null;
+    if (session.user.role === "club_admin" && session.user.clubId) {
       const clubTeams = await db
-        .select({ name: teams.name })
+        .select({ name: teams.name, gradeName: teams.gradeName })
         .from(teams)
-        .where(and(eq(teams.clubId, session.user.clubId), eq(teams.leagueId, session.user.leagueId)));
+        .where(eq(teams.clubId, session.user.clubId));
       scopedTeamNames = clubTeams.map((t) => t.name);
-      if (scopedTeamNames.length === 0) return NextResponse.json({ rows: [], rounds: [] });
+      scopedGrades = [...new Set(clubTeams.map((t) => t.gradeName).filter(Boolean))] as string[];
+      console.log("[leaderboard] club_admin scopedTeamNames:", scopedTeamNames);
+      console.log("[leaderboard] club_admin scopedGrades:", scopedGrades);
+      if (scopedTeamNames.length === 0) return NextResponse.json({ rows: [], rounds: [], scopedGrades: [] });
     }
 
-    let entries: VoteEntry[];
+    // Build a "number::fullName" → teamName roster map so cross-team number collisions
+    // don't cause a player to be attributed to the wrong club.
+    function buildRoster(rows: { playerNumber: string | null; firstName: string; lastName: string; teamName: string }[]): Map<string, string> {
+      const map = new Map<string, string>();
+      for (const r of rows) {
+        if (!r.playerNumber) continue;
+        const key = `${r.playerNumber}::${r.firstName.trim().toLowerCase()} ${r.lastName.trim().toLowerCase()}`;
+        map.set(key, r.teamName);
+      }
+      return map;
+    }
+
+    let rosterByNumber: Map<string, string>;
+    if (scopedTeamNames) {
+      // Club admin — look up roster for their specific teams only
+      const roster = await db
+        .select({ playerNumber: teamPlayers.playerNumber, firstName: teamPlayers.firstName, lastName: teamPlayers.lastName, teamName: teamPlayers.teamName })
+        .from(teamPlayers)
+        .where(inArray(teamPlayers.teamName, scopedTeamNames));
+      rosterByNumber = buildRoster(roster);
+      console.log("[leaderboard] club_admin roster size:", rosterByNumber.size);
+      console.log("[leaderboard] club_admin roster sample:", [...rosterByNumber.entries()].slice(0, 5));
+    } else {
+      // Superadmin — full roster to resolve team labels
+      const roster = await db
+        .select({ playerNumber: teamPlayers.playerNumber, firstName: teamPlayers.firstName, lastName: teamPlayers.lastName, teamName: teamPlayers.teamName })
+        .from(teamPlayers);
+      rosterByNumber = buildRoster(roster);
+    }
+
+    let rawEntries: VoteEntry[];
 
     if (type === "coaches") {
       const rows = await db.select().from(coachesVotes).where(eq(coachesVotes.grade, grade));
-      entries = extractVotes(rows as Parameters<typeof extractVotes>[0], "coachTeam");
+      rawEntries = extractVotes(rows);
     } else {
-      // Best & Fairest
+      // Best & Fairest — no home/away filter; all submissions for the grade/competition
       const bfFilters = [
         eq(bestAndFairest.competition, competition),
         ...(grade ? [eq(bestAndFairest.grade, grade)] : []),
-        ...(scopedTeamNames ? [inArray(bestAndFairest.homeTeam as any, scopedTeamNames)] : []),
       ];
       const rows = await db.select().from(bestAndFairest).where(and(...bfFilters));
-      entries = extractVotes(rows as Parameters<typeof extractVotes>[0], "homeTeam");
+      rawEntries = extractVotes(rows);
+    }
+
+    console.log("[leaderboard] rawEntries count:", rawEntries.length);
+    console.log("[leaderboard] rawEntries sample:", rawEntries.slice(0, 5).map((e) => ({ name: e.playerName, num: e.playerNumber, round: e.round })));
+
+    // Resolve each player's team from the roster
+    let entries = resolveTeams(rawEntries, rosterByNumber);
+
+    console.log("[leaderboard] after resolveTeams sample:", entries.slice(0, 5).map((e) => ({ name: e.playerName, num: e.playerNumber, team: e.team })));
+
+    // Club admins: keep only entries whose resolved team is one of their teams
+    if (scopedTeamNames) {
+      const teamSet = new Set(scopedTeamNames);
+      const before = entries.length;
+      entries = entries.filter((e) => teamSet.has(e.team));
+      console.log("[leaderboard] after team filter:", entries.length, "of", before, "entries kept");
+      console.log("[leaderboard] teams in filtered entries:", [...new Set(entries.map((e) => e.team))]);
     }
 
     if (round === "all") {
       // Find which rounds actually have votes, in canonical order
       const usedRoundsSet = new Set(entries.map((e) => e.round));
       const usedRounds = ROUND_OPTIONS.filter((r) => usedRoundsSet.has(r));
-      return NextResponse.json({ mode: "pivot", rows: buildPivot(entries, usedRounds), rounds: usedRounds });
+      return NextResponse.json({ mode: "pivot", rows: buildPivot(entries, usedRounds), rounds: usedRounds, ...(scopedGrades ? { scopedGrades } : {}) });
     }
 
-    return NextResponse.json({ mode: "round", rows: buildLeaderboard(entries, round), rounds: [] });
+    return NextResponse.json({ mode: "round", rows: buildLeaderboard(entries, round), rounds: [], ...(scopedGrades ? { scopedGrades } : {}) });
   } catch (err) {
     logger.error("[admin/leaderboard] GET failed", { category: "api", error: String(err), type, grade });
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });

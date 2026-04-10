@@ -10,7 +10,7 @@ export const ROUND_OPTIONS = [
 // ─── Age groups per competition ────────────────────────────────────────────
 export const AGE_GROUPS: Record<string, string[]> = {
   SFL:   ["Senior Men", "Reserves Men", "U18 Men", "Senior Women"],
-  STJFL: ["U13 Boys Group A", "U13 Boys Group B", "U14 Boys", "U14 Girls", "U15 Boys", "U16 Girls"],
+  STJFL: ["U13 Boys Group A", "U13 Boys Group B", "U14 Boys", "U14 Girls", "U15 Boys", "U16 Boys", "U16 Girls"],
 };
 
 // ─── Grade names (from PlayHQ) per competition + age group ────────────────
@@ -23,13 +23,14 @@ export const GRADE_MAP: Record<string, string[]> = {
   "SFL::U18 Men":      ["SFL Premier League U18 Boys",     "SFL Community League U18 Boys"],
   "SFL::Senior Women": ["SFL Premier League Senior Women", "SFL Community League Senior Women"],
 
-  // STJFL — no grade sub-division used in the form
-  "STJFL::U13 Boys Group A": [],
-  "STJFL::U13 Boys Group B": [],
-  "STJFL::U14 Boys":         [],
-  "STJFL::U14 Girls":        [],
-  "STJFL::U15 Boys":         [],
-  "STJFL::U16 Girls":        [],
+  // STJFL — grade names as they appear in PlayHQ
+  "STJFL::U13 Boys Group A": ["2026 STJFL U13 Boys Group A"],
+  "STJFL::U13 Boys Group B": ["2026 STJFL U13 Boys Group B"],
+  "STJFL::U14 Boys":         ["2026 STJFL U14 Boys"],
+  "STJFL::U14 Girls":        ["2026 STJFL U14 Girls"],
+  "STJFL::U15 Boys":         ["2026 STJFL U15 Boys"],
+  "STJFL::U16 Boys":         ["2026 STJFL U16 Boys"],
+  "STJFL::U16 Girls":        ["2026 STJFL U16 Girls"],
 };
 
 // ─── STJFL teams (hardcoded until season is active on PlayHQ) ─────────────
@@ -70,6 +71,7 @@ export const BNF_GRADES = new Set([
   "2026 STJFL U14 Boys",
   "2026 STJFL U14 Girls",
   "2026 STJFL U15 Boys",
+  "2026 STJFL U16 Boys",
   "2026 STJFL U16 Girls",
 ]);
 

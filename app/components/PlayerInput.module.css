@@ -58,6 +58,13 @@
   overflow-y: auto;
 }
 
+/* Flip above the input when near the bottom of the viewport */
+.suggestionsUp {
+  top: auto;
+  bottom: calc(100% + 4px);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.6);
+}
+
 .suggestion {
   display: flex;
   align-items: center;

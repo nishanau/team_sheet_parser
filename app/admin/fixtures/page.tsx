@@ -39,8 +39,8 @@ export default function FixturesPage() {
     <div>
       <h1 className={styles.pageTitle}>Fixtures</h1>
       <div className={styles.filters}>
-        <Select value={grade} onChange={setGrade} options={["", ...Array.from(ALLOWED_GRADES)]} />
-        <Select value={round} onChange={setRound} options={["", ...ROUND_OPTIONS]} />
+        <Select value={grade} onChange={setGrade} options={Array.from(ALLOWED_GRADES)} placeholder="Select Grade" />
+        <Select value={round} onChange={setRound} options={ROUND_OPTIONS} placeholder="Select Round" />
         <input
           className={styles.searchInput}
           type="search"

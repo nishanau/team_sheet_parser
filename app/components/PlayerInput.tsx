@@ -15,6 +15,8 @@ interface Props {
   onNameChange:   (name: string) => void;
   /** Called when a suggestion is selected — fills both number and name */
   onSelect: (num: string, name: string) => void;
+  /** Jumper numbers already selected in other rows — hidden from suggestions */
+  excludeNumbers?: Set<string>;
   numberPlaceholder?: string;
   namePlaceholder?: string;
 }
@@ -26,11 +28,13 @@ export default function PlayerInput({
   onNumberChange,
   onNameChange,
   onSelect,
+  excludeNumbers,
   numberPlaceholder = "#",
   namePlaceholder   = "Player name",
 }: Props) {
   const [activeField, setActiveField]  = useState<"number" | "name" | null>(null);
   const [highlighted, setHighlighted]  = useState<number>(-1);
+  const [dropUp, setDropUp]            = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   const suggestions = useMemo<GamePlayer[]>(() => {
@@ -39,6 +43,9 @@ export default function PlayerInput({
     if (!q) return [];
     const ql = q.toLowerCase();
     const filtered = players.filter((p) => {
+      // Hide players already selected in other rows
+      if (excludeNumbers && p.playerNumber && excludeNumbers.has(p.playerNumber)) return false;
+
       if (activeField === "number") {
         return (p.playerNumber ?? "").startsWith(ql);
       }
@@ -46,7 +53,7 @@ export default function PlayerInput({
       return full.includes(ql) || p.firstName.toLowerCase().startsWith(ql) || p.lastName.toLowerCase().startsWith(ql);
     });
     return filtered.slice(0, 8);
-  }, [numberValue, nameValue, activeField, players]);
+  }, [numberValue, nameValue, activeField, players, excludeNumbers]);
 
   // Close suggestions when clicking outside
   useEffect(() => {
@@ -58,6 +65,14 @@ export default function PlayerInput({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  // Flip dropdown upward when there isn't enough room below
+  function checkDropDirection() {
+    if (!wrapRef.current) return;
+    const rect = wrapRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    setDropUp(spaceBelow < 260);
+  }
 
   const pick = (p: GamePlayer) => {
     const num  = p.playerNumber ?? "";
@@ -99,7 +114,7 @@ export default function PlayerInput({
             setActiveField("number");
             setHighlighted(-1);
           }}
-          onFocus={() => setActiveField("number")}
+          onFocus={() => { setActiveField("number"); checkDropDirection(); }}
           onKeyDown={handleKeyDown}
           autoComplete="off"
         />
@@ -114,7 +129,7 @@ export default function PlayerInput({
             setActiveField("name");
             setHighlighted(-1);
           }}
-          onFocus={() => setActiveField("name")}
+          onFocus={() => { setActiveField("name"); checkDropDirection(); }}
           onKeyDown={handleKeyDown}
           autoComplete="off"
         />
@@ -122,7 +137,7 @@ export default function PlayerInput({
 
       {/* Suggestions dropdown */}
       {hasSuggestions && (
-        <ul className={styles.suggestions} role="listbox">
+        <ul className={`${styles.suggestions} ${dropUp ? styles.suggestionsUp : ""}`} role="listbox">
           {suggestions.map((p, i) => {
             const num  = p.playerNumber ? `#${p.playerNumber}` : "";
             const name = `${p.firstName} ${p.lastName}`.trim();

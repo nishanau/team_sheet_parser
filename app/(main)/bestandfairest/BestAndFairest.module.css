@@ -144,7 +144,7 @@
 
 /* Vote table */
 .tableWrap {
-  overflow-x: auto;
+  overflow: visible;
   border-radius: 14px;
   border: 1px solid var(--border);
 }

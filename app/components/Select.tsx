@@ -8,6 +8,7 @@ interface SelectProps {
   value: string;
   onChange: (value: string) => void;
   options: string[] | { label: string; value: string }[];
+  placeholder?: string;
   required?: boolean;
   className?: string;
   triggerClassName?: string;
@@ -18,6 +19,7 @@ export default function Select({
   value,
   onChange,
   options,
+  placeholder,
   required,
   className,
   triggerClassName,
@@ -35,12 +37,15 @@ export default function Select({
     }
   }, [open]);
 
-  // Normalise options to { label, value }
-  const normalised = options.map((o) =>
-    typeof o === "string" ? { label: o, value: o } : o
-  );
+  // Normalise options to { label, value } — filter out empty-string entries when a placeholder is used
+  const normalised = options
+    .map((o) => (typeof o === "string" ? { label: o, value: o } : o))
+    .filter((o) => !(placeholder && o.value === ""));
 
-  const selectedLabel = normalised.find((o) => o.value === value)?.label ?? value;
+  const isEmpty = value === "" || value === null || value === undefined;
+  const selectedLabel = isEmpty && placeholder
+    ? placeholder
+    : (normalised.find((o) => o.value === value)?.label ?? value);
 
   // Close on outside click or Escape
   useEffect(() => {
@@ -89,7 +94,14 @@ export default function Select({
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <span style={triggerClassName ? {} : { overflow: "hidden", textOverflow: "ellipsis" }}>{selectedLabel}</span>
+        <span
+          style={{
+            ...(triggerClassName ? {} : { overflow: "hidden", textOverflow: "ellipsis" }),
+            ...(isEmpty && placeholder ? { opacity: 0.45 } : {}),
+          }}
+        >
+          {selectedLabel}
+        </span>
         <svg
           className={`${styles.caret} ${open ? styles.caretOpen : ""}`}
           viewBox="0 0 16 16"
