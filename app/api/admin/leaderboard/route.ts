@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, count } from "drizzle-orm";
 
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
@@ -132,7 +132,7 @@ export async function GET(req: NextRequest) {
       scopedGrades = [...new Set(clubTeams.map((t) => t.gradeName).filter(Boolean))] as string[];
       console.log("[leaderboard] club_admin scopedTeamNames:", scopedTeamNames);
       console.log("[leaderboard] club_admin scopedGrades:", scopedGrades);
-      if (scopedTeamNames.length === 0) return NextResponse.json({ rows: [], rounds: [], scopedGrades: [] });
+      if (scopedTeamNames.length === 0) return NextResponse.json({ rows: [], rounds: [], totals: { bf: 0, coaches: 0 } });
     }
 
     // Build a "number::fullName" → teamName roster map so cross-team number collisions
@@ -199,14 +199,21 @@ export async function GET(req: NextRequest) {
       console.log("[leaderboard] teams in filtered entries:", [...new Set(entries.map((e) => e.team))]);
     }
 
+    // Count raw submissions for the selected grade (both types, regardless of active tab)
+    const [[bfRow], [cvRow]] = await Promise.all([
+      db.select({ c: count() }).from(bestAndFairest).where(eq(bestAndFairest.grade, grade)),
+      db.select({ c: count() }).from(coachesVotes).where(eq(coachesVotes.grade, grade)),
+    ]);
+    const totals = { bf: bfRow.c, coaches: cvRow.c };
+
     if (round === "all") {
       // Find which rounds actually have votes, in canonical order
       const usedRoundsSet = new Set(entries.map((e) => e.round));
       const usedRounds = ROUND_OPTIONS.filter((r) => usedRoundsSet.has(r));
-      return NextResponse.json({ mode: "pivot", rows: buildPivot(entries, usedRounds), rounds: usedRounds });
+      return NextResponse.json({ mode: "pivot", rows: buildPivot(entries, usedRounds), rounds: usedRounds, totals });
     }
 
-    return NextResponse.json({ mode: "round", rows: buildLeaderboard(entries, round), rounds: [] });
+    return NextResponse.json({ mode: "round", rows: buildLeaderboard(entries, round), rounds: [], totals });
   } catch (err) {
     logger.error("[admin/leaderboard] GET failed", { category: "api", error: String(err), type, grade });
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
