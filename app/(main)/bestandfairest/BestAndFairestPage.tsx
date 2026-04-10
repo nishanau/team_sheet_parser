@@ -270,7 +270,7 @@ function BestAndFairestForm({
           competition,
           matchDate:   selectedFixture.matchDate,
           ageGroup,
-          grade:       competition === "SFL" ? gradeName : null,
+          grade:       gradeName,
           homeTeam:    selectedFixture.homeTeamName,
           opposition:  selectedFixture.awayTeamName,
           round:       selectedFixture.roundName,
