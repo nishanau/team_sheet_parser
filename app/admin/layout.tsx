@@ -22,13 +22,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const isSuperadmin = session.user.role === "superadmin";
   const navItems = NAV.filter((n) => !n.superadminOnly || isSuperadmin);
+  const brandLabel = isSuperadmin ? "SFL Admin" : `${session.user.clubName ?? "Club"} Admin`;
 
   return (
     <>
     <Nav />
     <div className={styles.shell}>
       <aside className={styles.sidebar}>
-        <div className={styles.brand}>SFL Admin</div>
+        <div className={styles.brand}>{brandLabel}</div>
         <AdminNav items={navItems} />
         <div className={styles.footer}>
           <span className={styles.username}>{session.user.name}</span>

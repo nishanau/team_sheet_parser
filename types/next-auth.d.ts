@@ -6,6 +6,9 @@ declare module "next-auth" {
       role: string;
       clubId: number | null;
       leagueId: number | null;
+      hasCoachesTab: boolean;
+      clubName: string | null;
+      scopedGrades: string[] | null;
     } & DefaultSession["user"];
   }
 }
@@ -15,5 +18,8 @@ declare module "@auth/core/jwt" {
     role: string;
     clubId: number | null;
     leagueId: number | null;
+    hasCoachesTab: boolean;
+    clubName: string | null;
+    scopedGrades: string[] | null;
   }
 }

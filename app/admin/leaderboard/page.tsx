@@ -3,7 +3,7 @@ import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 
 import Select from "@/app/components/Select";
-import { ROUND_OPTIONS, GRADE_MAP } from "@/lib/constants";
+import { ROUND_OPTIONS, GRADE_MAP, CV_GRADES } from "@/lib/constants";
 import styles from "./leaderboard.module.css";
 
 type RoundRow = {
@@ -25,8 +25,8 @@ type PivotRow = {
 };
 
 type ApiResponse =
-  | { mode: "round"; rows: RoundRow[]; rounds: string[]; scopedGrades?: string[] }
-  | { mode: "pivot"; rows: PivotRow[]; rounds: string[]; scopedGrades?: string[] };
+  | { mode: "round"; rows: RoundRow[]; rounds: string[] }
+  | { mode: "pivot"; rows: PivotRow[]; rounds: string[] };
 
 const COMPETITIONS = ["SFL", "STJFL"];
 
@@ -73,11 +73,21 @@ export default function LeaderboardPage() {
   const [round, setRound] = useState("all");
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const [scopedGrades, setScopedGrades] = useState<Set<string> | null>(null);
 
-  // All grades for the selected competition, narrowed for club admins
-  const allGrades = allGradesFor(competition);
-  const grades = scopedGrades ? allGrades.filter((g) => scopedGrades.has(g)) : allGrades;
+  // scopedGrades is baked into the session at login for club admins — no API round-trip needed
+  const sessionScopedGrades = session?.user?.scopedGrades ?? null;
+
+  // hasCoachesTab is baked into the session at login — no API round-trip needed
+  const hasCoachesTab = session?.user?.hasCoachesTab ?? isSuperadmin;
+
+  // Grade options depend on active tab and role:
+  // • coaches: always the CV_GRADES list
+  // • bf superadmin: all grades for the selected competition (available synchronously)
+  // • bf club admin: their grades from the session token (available as soon as session loads)
+  const allBfGrades = isSuperadmin
+    ? allGradesFor(competition)
+    : (sessionScopedGrades ?? []);
+  const grades = tab === "coaches" ? [...CV_GRADES] : allBfGrades;
 
   // Reset grade when competition changes — done in the setter, not an effect
   function handleCompetitionChange(val: string) {
@@ -96,15 +106,11 @@ export default function LeaderboardPage() {
         const res: ApiResponse = await fetch(`/api/admin/leaderboard?${params}`).then((r) => r.json());
         if (cancelled) return;
         setData(res);
-        if (res.scopedGrades && !scopedGrades) {
-          setScopedGrades(new Set(res.scopedGrades));
-        }
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, competition, grade, round]);
 
   const isEmpty = !data || data.rows.length === 0;
@@ -124,17 +130,17 @@ export default function LeaderboardPage() {
         </button>
       </div>
 
-      {isSuperadmin && (
+      {hasCoachesTab && (
         <div className={styles.tabs}>
           <button
             className={`${styles.tab} ${tab === "bf" ? styles.tabActive : ""}`}
-            onClick={() => setTab("bf")}
+            onClick={() => { setTab("bf"); setGrade(""); }}
           >
             Best &amp; Fairest
           </button>
           <button
             className={`${styles.tab} ${tab === "coaches" ? styles.tabActive : ""}`}
-            onClick={() => setTab("coaches")}
+            onClick={() => { setTab("coaches"); setCompetition("SFL"); setGrade(""); }}
           >
             Coaches Votes
           </button>
@@ -142,7 +148,7 @@ export default function LeaderboardPage() {
       )}
 
       <div className={styles.filters}>
-        {tab === "bf" && (
+        {isSuperadmin && tab === "bf" && (
           <Select value={competition} onChange={handleCompetitionChange} options={COMPETITIONS} />
         )}
         <Select value={grade} onChange={setGrade} options={grades} placeholder="Select Grade" className={styles.gradeSelect} triggerClassName={styles.gradeTrigger} />

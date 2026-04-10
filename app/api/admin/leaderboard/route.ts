@@ -102,8 +102,9 @@ export async function GET(req: NextRequest) {
   const grade       = searchParams.get("grade") ?? "";
   const round       = searchParams.get("round") ?? "all";
 
-  // Coaches votes: superadmin only
-  if (type === "coaches" && session.user.role !== "superadmin") {
+  // Coaches votes: superadmin always allowed; club_admin only if they have a CV-eligible grade
+  // (hasCoachesTab on the session tells the UI whether to show the tab — the API enforces it too)
+  if (type === "coaches" && session.user.role !== "superadmin" && !session.user.hasCoachesTab) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -170,10 +171,12 @@ export async function GET(req: NextRequest) {
       const rows = await db.select().from(coachesVotes).where(eq(coachesVotes.grade, grade));
       rawEntries = extractVotes(rows);
     } else {
-      // Best & Fairest — no home/away filter; all submissions for the grade/competition
+      // Best & Fairest — filter by grade (which already scopes the competition);
+      // only add the competition filter for superadmin "all grades" queries without a specific grade.
       const bfFilters = [
-        eq(bestAndFairest.competition, competition),
-        ...(grade ? [eq(bestAndFairest.grade, grade)] : []),
+        ...(grade
+          ? [eq(bestAndFairest.grade, grade)]
+          : [eq(bestAndFairest.competition, competition)]),
       ];
       const rows = await db.select().from(bestAndFairest).where(and(...bfFilters));
       rawEntries = extractVotes(rows);
@@ -200,10 +203,10 @@ export async function GET(req: NextRequest) {
       // Find which rounds actually have votes, in canonical order
       const usedRoundsSet = new Set(entries.map((e) => e.round));
       const usedRounds = ROUND_OPTIONS.filter((r) => usedRoundsSet.has(r));
-      return NextResponse.json({ mode: "pivot", rows: buildPivot(entries, usedRounds), rounds: usedRounds, ...(scopedGrades ? { scopedGrades } : {}) });
+      return NextResponse.json({ mode: "pivot", rows: buildPivot(entries, usedRounds), rounds: usedRounds });
     }
 
-    return NextResponse.json({ mode: "round", rows: buildLeaderboard(entries, round), rounds: [], ...(scopedGrades ? { scopedGrades } : {}) });
+    return NextResponse.json({ mode: "round", rows: buildLeaderboard(entries, round), rounds: [] });
   } catch (err) {
     logger.error("[admin/leaderboard] GET failed", { category: "api", error: String(err), type, grade });
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
