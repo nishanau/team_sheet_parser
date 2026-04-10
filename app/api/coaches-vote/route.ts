@@ -75,9 +75,9 @@ export async function POST(req: NextRequest) {
         year: "numeric", month: "2-digit", day: "2-digit",
       }).format(d);
     };
-    const today    = tasDate(0);
-    const tomorrow = tasDate(1);
-    if (matchDate !== today && matchDate !== tomorrow) {
+    const today     = tasDate(0);
+    const yesterday = tasDate(-1);
+    if (matchDate !== today && matchDate !== yesterday) {
       return NextResponse.json(
         { error: "Votes can only be submitted on match day or the day after." },
         { status: 422 }

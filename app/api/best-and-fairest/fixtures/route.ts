@@ -36,7 +36,7 @@ export interface AnnotatedFixture {
  * show the full schedule but disable ineligible games.
  *
  * A game is eligible to vote on when:
- *   1. matchDate is today or tomorrow (Tasmania time)
+ *   1. matchDate is today or yesterday (Tasmania time)
  *   2. submissions for this team + round are below the cap (3)
  */
 export async function GET(req: NextRequest) {
@@ -52,8 +52,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const today    = getTasDate(0);
-    const tomorrow = getTasDate(1);
+    const today     = getTasDate(0);
+    const yesterday = getTasDate(-1);
 
     // All fixtures for this team — home or away, all rounds
     const allFixtures = await db
@@ -90,7 +90,7 @@ export async function GET(req: NextRequest) {
 
     // Annotate every fixture with eligibility
     const annotated: AnnotatedFixture[] = allFixtures.map((f) => {
-      const inWindow  = f.matchDate === today || f.matchDate === tomorrow;
+      const inWindow  = f.matchDate === today || f.matchDate === yesterday;
       const usedSlots = submittedByRound[f.roundName] ?? 0;
       const underCap  = usedSlots < SUBMISSION_LIMIT;
 

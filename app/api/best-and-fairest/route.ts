@@ -124,11 +124,11 @@ export async function POST(req: NextRequest) {
 
 
     // ── Match date window: today or tomorrow (Tasmania time) ────────────────
-    const today    = getTasDate(0);
-    const tomorrow = getTasDate(1);
-    if (matchDate !== today && matchDate !== tomorrow) {
+    const today     = getTasDate(0);
+    const yesterday = getTasDate(-1);
+    if (matchDate !== today && matchDate !== yesterday) {
       return NextResponse.json(
-        { error: "Votes can only be submitted for matches played today or tomorrow." },
+        { error: "Votes can only be submitted for matches played today or yesterday." },
         { status: 422 }
       );
     }
