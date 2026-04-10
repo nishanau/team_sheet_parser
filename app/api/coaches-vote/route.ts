@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { coachesVotes, leagues, teams, teamAccessCodes } from "@/db/schema";
+import { coachesVotes, teamAccessCodes } from "@/db/schema";
 import { and, eq, desc } from "drizzle-orm";
 import { ROUND_OPTIONS as ROUND_OPTIONS_ARR } from "@/lib/constants";
 import { logger } from "@/lib/logger";
@@ -114,21 +114,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Team validation ───────────────────────────────────────────────────────
-    const allLeagues = await db.select().from(leagues);
-    const sflLeague  = allLeagues.find((l) => l.name === "SFL");
-    if (!sflLeague) return err("SFL league not found in database.");
-
-    const gradeTeams = await db
-      .select()
-      .from(teams)
-      .where(and(eq(teams.leagueId, sflLeague.id), eq(teams.gradeName, grade)));
-    const knownTeamNames = new Set(gradeTeams.map((t) => t.name));
-
-    if (!knownTeamNames.has(homeTeam))  return err(`Unknown home team: "${homeTeam}".`);
-    if (!knownTeamNames.has(awayTeam))  return err(`Unknown away team: "${awayTeam}".`);
-    if (homeTeam === awayTeam)          return err("Home team and away team cannot be the same.");
-    if (!knownTeamNames.has(coachTeam)) return err(`Unknown coachTeam: "${coachTeam}".`);
+    if (homeTeam === awayTeam) return err("Home team and away team cannot be the same.");
 
     // ── Player rows ───────────────────────────────────────────────────────────
     const playerFields = [1, 2, 3, 4, 5].map((n) => {
