@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { runSync } from "@/lib/sync";
+import { runFixtureSync, runFullSync } from "@/lib/sync";
 import {
   getSyncState,
   startSync,
@@ -20,7 +20,8 @@ export async function GET() {
 }
 
 // POST — fire sync in the background and return immediately
-export async function POST() {
+// Body: { type: "fixtures" | "full" }  (defaults to "fixtures")
+export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session || session.user.role !== "superadmin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -30,11 +31,17 @@ export async function POST() {
     return NextResponse.json({ error: "Sync already in progress." }, { status: 409 });
   }
 
+  const body = await req.json().catch(() => ({})) as { type?: string };
+  const isFull = body.type === "full";
+
   // Mark as running before going async so a second POST sees the lock immediately
   startSync();
-  logger.info("[admin/sync] triggered", { category: "business", triggeredBy: session.user.name ?? "unknown" });
+  logger.info("[admin/sync] triggered", {
+    category: "business",
+    type: isFull ? "full" : "fixtures",
+    triggeredBy: session.user.name ?? "unknown",
+  });
 
-  // Build a proxy array that forwards every push() to the store
   const log: string[] = new Proxy([] as string[], {
     get(target, prop) {
       if (prop === "push") {
@@ -50,10 +57,13 @@ export async function POST() {
 
   const started = Date.now();
 
-  // Fire-and-forget — does NOT block the HTTP response
   (async () => {
     try {
-      await runSync(log);
+      if (isFull) {
+        await runFullSync(log);
+      } else {
+        await runFixtureSync(log);
+      }
       appendLog(`Completed in ${((Date.now() - started) / 1000).toFixed(1)}s`);
       finishSync(true);
     } catch (err) {

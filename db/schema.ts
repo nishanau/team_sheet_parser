@@ -50,6 +50,7 @@ export const teams = sqliteTable("teams", {
   name:      text("name").notNull(),
   gradeName: text("grade_name"),   // PlayHQ grade e.g. "SFL Premier League Senior Men"; null = STJFL fallback
   clubId:    integer("club_id").references(() => clubs.id),
+  playhqId:  text("playhq_id").unique(),  // PlayHQ team ID from ladder — used to link club_id definitively
 });
 
 export const teamsRelations = relations(teams, ({ one }) => ({

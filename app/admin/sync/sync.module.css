@@ -1,8 +1,10 @@
 .title { font-size: 20px; font-weight: 700; color: var(--text); margin: 0 0 8px; }
-.hint  { color: var(--muted); font-size: 14px; margin: 0 0 20px; }
+.hint  { color: var(--muted); font-size: 14px; margin: 0 0 20px; line-height: 1.6; }
+.btnGroup { display: flex; gap: 12px; flex-wrap: wrap; }
 .btn   { background: var(--accent); color: white; border: none; border-radius: 8px; padding: 10px 24px; font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
 .btn:hover { opacity: 0.88; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btnSecondary { background: var(--surface2, #2a2a3a); color: var(--text); border: 1px solid var(--border); }
 .meta  { margin-top: 14px; font-size: 13px; color: var(--muted); }
 .statusDone    { color: var(--accent2); font-weight: 600; }
 .statusErr     { color: var(--danger); font-weight: 600; }

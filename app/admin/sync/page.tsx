@@ -32,7 +32,6 @@ export default function SyncPage() {
     }
   }
 
-  // Fetch current state on mount (so refreshing the page shows last run)
   useEffect(() => { fetchSyncState(); }, []);
 
   function startPolling() {
@@ -40,11 +39,15 @@ export default function SyncPage() {
     pollRef.current = setInterval(fetchSyncState, 1000);
   }
 
-  async function handleSync() {
+  async function handleSync(type: "fixtures" | "full") {
     setPosting(true);
     pollFailures.current = 0;
     try {
-      const res = await fetch("/api/admin/sync", { method: "POST" });
+      const res = await fetch("/api/admin/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type }),
+      });
       if (res.status === 409) {
         // Already running — just start polling to show progress
       } else if (!res.ok) {
@@ -63,10 +66,18 @@ export default function SyncPage() {
   return (
     <div>
       <h1 className={styles.title}>PlayHQ Sync</h1>
-      <p className={styles.hint}>Fetches fixtures, teams, and clubs from PlayHQ and updates the database.</p>
-      <button className={styles.btn} onClick={handleSync} disabled={running || posting}>
-        {running ? "Syncing…" : "Run PlayHQ Sync"}
-      </button>
+      <p className={styles.hint}>
+        <strong>Sync Fixtures</strong> — fast daily sync, updates rounds/dates/venues from existing teams.<br />
+        <strong>Full Sync</strong> — re-fetches clubs and teams from PlayHQ, then syncs fixtures.
+      </p>
+      <div className={styles.btnGroup}>
+        <button className={styles.btn} onClick={() => handleSync("fixtures")} disabled={running || posting}>
+          {running ? "Syncing…" : "Sync Fixtures"}
+        </button>
+        <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => handleSync("full")} disabled={running || posting}>
+          {running ? "Syncing…" : "Full Sync"}
+        </button>
+      </div>
       {state.status !== "idle" && (
         <div className={styles.meta}>
           {state.startedAt  && <span>Started: {new Date(state.startedAt).toLocaleTimeString()}</span>}
@@ -82,4 +93,3 @@ export default function SyncPage() {
     </div>
   );
 }
-

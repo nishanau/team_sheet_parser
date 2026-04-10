@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { runSync } from "@/lib/sync";
+import { runFixtureSync } from "@/lib/sync";
 import { logger } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   logger.info("[cron/sync] triggered", { category: "sync" });
 
   try {
-    await runSync(log);
+    await runFixtureSync(log);
     logger.info("[cron/sync] completed", { category: "sync" });
     log.push(`Sync completed in ${((Date.now() - started) / 1000).toFixed(1)}s`);
     return NextResponse.json({ success: true, log });
