@@ -24,9 +24,11 @@ const VOTE_LABELS = ["5", "4", "3", "2", "1"];
 
 // Derive competition + ageGroup from gradeName stored in the session
 function parseGrade(gradeName: string): { competition: string; ageGroup: string } {
-  if (gradeName.startsWith("SFL ")) {
-    const knownAgeGroups = ["Senior Men", "Reserves Men", "U18 Boys", "Senior Women"];
-    const afterSfl = gradeName.slice(4);
+  const sflIdx = gradeName.indexOf("SFL ");
+  if (sflIdx !== -1 && gradeName.indexOf("STJFL ") === -1) {
+    // NOTE: age group strings must stay in sync with AGE_GROUPS.SFL in lib/constants.ts
+    const knownAgeGroups = ["Senior Men", "Reserves Men", "U18 Men", "Senior Women"];
+    const afterSfl = gradeName.slice(sflIdx + 4);
     const ag = knownAgeGroups.find((a) => afterSfl.endsWith(a)) ?? afterSfl;
     return { competition: "SFL", ageGroup: ag };
   }

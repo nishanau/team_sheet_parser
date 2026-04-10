@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { bestAndFairest, leagues, teams, teamAccessCodes, teamPlayers } from "@/db/schema";
+import { bestAndFairest, leagues, teamAccessCodes, teamPlayers } from "@/db/schema";
 import { and, eq, desc, count } from "drizzle-orm";
-import { ROUND_OPTIONS as ROUND_OPTIONS_ARR, AGE_GROUPS, GRADE_MAP, STJFL_TEAMS } from "@/lib/constants";
+import { ROUND_OPTIONS as ROUND_OPTIONS_ARR, AGE_GROUPS, GRADE_MAP } from "@/lib/constants";
 import { logger } from "@/lib/logger";
 
 // ─── Validation constants ─────────────────────────────────────────────────────
@@ -91,21 +91,7 @@ export async function POST(req: NextRequest) {
 
     if (!ROUND_OPTIONS.has(round)) return err(`Unknown round: "${round}".`);
 
-    // Team list: SFL from DB, STJFL hardcoded
-    let knownTeamNames: Set<string>;
-    if (competition === "SFL" && grade) {
-      const gradeTeams = await db
-        .select()
-        .from(teams)
-        .where(and(eq(teams.leagueId, leagueRow.id), eq(teams.gradeName, grade)));
-      knownTeamNames = new Set(gradeTeams.map((t) => t.name));
-    } else {
-      knownTeamNames = new Set(STJFL_TEAMS);
-    }
-
-    if (!knownTeamNames.has(homeTeam))  return err(`Unknown home team: "${homeTeam}".`);
-    if (!knownTeamNames.has(opposition)) return err(`Unknown opposition: "${opposition}".`);
-    if (homeTeam === opposition)         return err("Home team and opposition cannot be the same.");
+    if (homeTeam === opposition) return err("Home team and opposition cannot be the same.");
 
     // ── Access code re-validation ─────────────────────────────────────────────
     const [codeRow] = await db
@@ -136,13 +122,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // The submitting team must be a participant in this game (home or away)
-    if (submittingTeam !== homeTeam && submittingTeam !== opposition) {
-      return NextResponse.json(
-        { error: "Your team is not a participant in this match." },
-        { status: 401 }
-      );
-    }
 
     // ── Match date window: today or tomorrow (Tasmania time) ────────────────
     const today    = getTasDate(0);
