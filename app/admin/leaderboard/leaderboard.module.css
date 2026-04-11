@@ -20,3 +20,5 @@
 .td      { padding: 10px 14px; font-size: 14px; color: var(--text); border-bottom: 1px solid var(--border); }
 .tdCenter { text-align: center; }
 .totals { margin-top: 14px; font-size: 13px; color: var(--muted); }
+.tfootRow .td { background: var(--panel2); border-top: 2px solid var(--border); }
+.tfootLabel { font-weight: 600; color: var(--muted); font-size: 13px; }

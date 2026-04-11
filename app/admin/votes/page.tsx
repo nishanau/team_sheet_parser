@@ -90,15 +90,33 @@ function CoachCard({ sub }: { sub: CoachesVoteSelect }) {
   );
 }
 
+function getInitialParam(urlKey: string, storageKey: string, fallback = "") {
+  if (typeof window === "undefined") return fallback;
+  const urlVal = new URLSearchParams(window.location.search).get(urlKey);
+  if (urlVal !== null) return urlVal;
+  return sessionStorage.getItem(storageKey) ?? fallback;
+}
+
 export default function VotesPage() {
   useSession(); // ensures session context is available via SessionProvider in layout
 
-  const [competition, setCompetition] = useState("SFL");
-  const [grade, setGrade] = useState("");
-  const [data, setData] = useState<ApiResponse | null>(null);
+  const [competition, setCompetition] = useState(() => getInitialParam("competition", "votes:competition", "SFL"));
+  const [grade, setGrade]             = useState(() => getInitialParam("grade", "votes:grade"));
+  const [data, setData]   = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
   const grades = allGradesFor(competition);
+
+  // Persist filter state so navigation away and back restores context.
+  useEffect(() => {
+    sessionStorage.setItem("votes:competition", competition);
+    sessionStorage.setItem("votes:grade", grade);
+    const params = new URLSearchParams();
+    if (competition !== "SFL") params.set("competition", competition);
+    if (grade) params.set("grade", grade);
+    const qs = params.toString();
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+  }, [competition, grade]);
 
   function handleCompetitionChange(val: string) {
     setCompetition(val);

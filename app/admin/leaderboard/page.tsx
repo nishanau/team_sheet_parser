@@ -35,6 +35,14 @@ function allGradesFor(competition: string) {
     .filter((g) => g.length > 0);
 }
 
+// URL params take precedence (bookmarked/shared URL), then sessionStorage (came back via sidebar).
+function getInitialParam(urlKey: string, storageKey: string, fallback = "") {
+  if (typeof window === "undefined") return fallback;
+  const urlVal = new URLSearchParams(window.location.search).get(urlKey);
+  if (urlVal !== null) return urlVal;
+  return sessionStorage.getItem(storageKey) ?? fallback;
+}
+
 function exportRoundCSV(rows: RoundRow[], grade: string, round: string) {
   const headers = "Rank,Player,Number,Team,Round Votes,Total Votes";
   const lines = rows.map(
@@ -65,11 +73,14 @@ export default function LeaderboardPage() {
   const { data: session } = useSession();
   const isSuperadmin = session?.user?.role === "superadmin";
 
-  const [tab, setTab] = useState<"bf" | "coaches">("bf");
-  const [competition, setCompetition] = useState("SFL");
-  const [grade, setGrade] = useState("");
-  const [round, setRound] = useState("all");
-  const [data, setData] = useState<ApiResponse | null>(null);
+  const [tab, setTab] = useState<"bf" | "coaches">(() => {
+    const v = getInitialParam("tab", "lb:tab");
+    return v === "coaches" ? "coaches" : "bf";
+  });
+  const [competition, setCompetition] = useState(() => getInitialParam("competition", "lb:competition", "SFL"));
+  const [grade, setGrade]             = useState(() => getInitialParam("grade", "lb:grade"));
+  const [round, setRound]             = useState(() => getInitialParam("round", "lb:round", "all"));
+  const [data, setData]   = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
   // scopedGrades is baked into the session at login for club admins — no API round-trip needed
@@ -86,6 +97,22 @@ export default function LeaderboardPage() {
     ? allGradesFor(competition)
     : (sessionScopedGrades ?? []);
   const grades = tab === "coaches" ? [...CV_GRADES] : allBfGrades;
+
+  // Persist filter state so navigation away and back restores context.
+  // sessionStorage survives sidebar navigation (URL resets); URL keeps the state bookmarkable.
+  useEffect(() => {
+    sessionStorage.setItem("lb:tab", tab);
+    sessionStorage.setItem("lb:competition", competition);
+    sessionStorage.setItem("lb:grade", grade);
+    sessionStorage.setItem("lb:round", round);
+    const params = new URLSearchParams();
+    if (tab !== "bf") params.set("tab", tab);
+    if (competition !== "SFL") params.set("competition", competition);
+    if (grade) params.set("grade", grade);
+    if (round !== "all") params.set("round", round);
+    const qs = params.toString();
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+  }, [tab, competition, grade, round]);
 
   // Reset grade when competition changes — done in the setter, not an effect
   function handleCompetitionChange(val: string) {
@@ -118,6 +145,24 @@ export default function LeaderboardPage() {
     if (data.mode === "pivot") exportPivotCSV(data.rows, data.rounds, grade);
     else exportRoundCSV(data.rows, grade, round);
   }
+
+  // ── Column totals for tfoot rows ───────────────────────────────────────────
+  const pivotTotals = (() => {
+    if (!data || isEmpty || data.mode !== "pivot") return null;
+    const byRound: Record<string, number> = {};
+    for (const rnd of data.rounds) {
+      byRound[rnd] = data.rows.reduce((s, r) => s + (r.roundBreakdown[rnd] ?? 0), 0);
+    }
+    return { byRound, grand: Object.values(byRound).reduce((a, b) => a + b, 0) };
+  })();
+
+  const roundTotals = (() => {
+    if (!data || isEmpty || data.mode !== "round") return null;
+    return {
+      round: data.rows.reduce((s, r) => s + r.roundVotes, 0),
+      total: data.rows.reduce((s, r) => s + r.totalVotes, 0),
+    };
+  })();
 
   return (
     <div>
@@ -191,6 +236,20 @@ export default function LeaderboardPage() {
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr className={styles.tfootRow}>
+                <td className={styles.td} />
+                <td className={`${styles.td} ${styles.tfootLabel}`} colSpan={3}>Total votes</td>
+                {data.rounds.map((rnd) => (
+                  <td key={rnd} className={`${styles.td} ${styles.tdCenter}`}>
+                    <strong>{pivotTotals!.byRound[rnd] ?? 0}</strong>
+                  </td>
+                ))}
+                <td className={`${styles.td} ${styles.tdCenter}`}>
+                  <strong>{pivotTotals!.grand}</strong>
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       ) : (
@@ -220,6 +279,18 @@ export default function LeaderboardPage() {
               </tr>
             ))}
           </tbody>
+          <tfoot>
+            <tr className={styles.tfootRow}>
+              <td className={styles.td} />
+              <td className={`${styles.td} ${styles.tfootLabel}`} colSpan={3}>Total votes</td>
+              <td className={`${styles.td} ${styles.tdCenter}`}>
+                <strong>{roundTotals!.round}</strong>
+              </td>
+              <td className={`${styles.td} ${styles.tdCenter}`}>
+                <strong>{roundTotals!.total}</strong>
+              </td>
+            </tr>
+          </tfoot>
         </table>
       )}
       {data && (
@@ -232,4 +303,3 @@ export default function LeaderboardPage() {
     </div>
   );
 }
-
