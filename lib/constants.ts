@@ -65,6 +65,7 @@ export const BNF_GRADES = new Set([
   "SFL Premier League Senior Women",
   "SFL Community League Senior Men",
   "SFL Community League Senior Women",
+  "SFL Premier League U18 Boys",
   // STJFL
   "2026 STJFL U13 Boys Group A",
   "2026 STJFL U13 Boys Group B",
