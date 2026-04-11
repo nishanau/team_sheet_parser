@@ -118,8 +118,6 @@ export async function GET(req: NextRequest) {
   });
 
   try {
-    console.log("[leaderboard] session.user:", JSON.stringify(session.user));
-
     // Club admin: get their team names + grades (scoped by clubId only — leagueId may be null)
     let scopedTeamNames: string[] | null = null;
     let scopedGrades: string[] | null = null;
@@ -130,8 +128,6 @@ export async function GET(req: NextRequest) {
         .where(eq(teams.clubId, session.user.clubId));
       scopedTeamNames = clubTeams.map((t) => t.name);
       scopedGrades = [...new Set(clubTeams.map((t) => t.gradeName).filter(Boolean))] as string[];
-      console.log("[leaderboard] club_admin scopedTeamNames:", scopedTeamNames);
-      console.log("[leaderboard] club_admin scopedGrades:", scopedGrades);
       if (scopedTeamNames.length === 0) return NextResponse.json({ rows: [], rounds: [], totals: { bf: 0, coaches: 0 } });
     }
 
@@ -155,8 +151,6 @@ export async function GET(req: NextRequest) {
         .from(teamPlayers)
         .where(inArray(teamPlayers.teamName, scopedTeamNames));
       rosterByNumber = buildRoster(roster);
-      console.log("[leaderboard] club_admin roster size:", rosterByNumber.size);
-      console.log("[leaderboard] club_admin roster sample:", [...rosterByNumber.entries()].slice(0, 5));
     } else {
       // Superadmin — full roster to resolve team labels
       const roster = await db
@@ -182,21 +176,13 @@ export async function GET(req: NextRequest) {
       rawEntries = extractVotes(rows);
     }
 
-    console.log("[leaderboard] rawEntries count:", rawEntries.length);
-    console.log("[leaderboard] rawEntries sample:", rawEntries.slice(0, 5).map((e) => ({ name: e.playerName, num: e.playerNumber, round: e.round })));
-
     // Resolve each player's team from the roster
     let entries = resolveTeams(rawEntries, rosterByNumber);
-
-    console.log("[leaderboard] after resolveTeams sample:", entries.slice(0, 5).map((e) => ({ name: e.playerName, num: e.playerNumber, team: e.team })));
 
     // Club admins: keep only entries whose resolved team is one of their teams
     if (scopedTeamNames) {
       const teamSet = new Set(scopedTeamNames);
-      const before = entries.length;
       entries = entries.filter((e) => teamSet.has(e.team));
-      console.log("[leaderboard] after team filter:", entries.length, "of", before, "entries kept");
-      console.log("[leaderboard] teams in filtered entries:", [...new Set(entries.map((e) => e.team))]);
     }
 
     // Count raw submissions for the selected grade (both types, regardless of active tab)

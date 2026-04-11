@@ -173,10 +173,6 @@ export async function GET(req: NextRequest) {
     playerCount: parsed.length,
     players: parsed.map((p) => `#${p.playerNumber ?? "?"} ${p.firstName} ${p.lastName}`.trim()),
   });
-  console.log(
-    `[game-players] ${teamName} — ${parsed.length} players:\n` +
-    parsed.map((p) => `  #${p.playerNumber ?? "?"} ${p.firstName} ${p.lastName}`).join("\n")
-  );
   // One SELECT to load all existing players for the team, then bulk insert/update
   // instead of N+1 round-trips to Turso.
   (async () => {

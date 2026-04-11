@@ -6,7 +6,11 @@
       "Bash(node -e \"const fs = require\\('fs'\\); const p = fs.readdirSync\\('./node_modules/next/dist/build/'\\).filter\\(f => f.includes\\('proxy'\\) || f.includes\\('middleware'\\)\\); console.log\\(p.slice\\(0,10\\)\\)\")",
       "Bash(node scripts/seed-admin.mjs admin 'Leap4rog$$' superadmin)",
       "Bash(xargs grep:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Read(//tmp/**)",
+      "Bash(git:*)",
+      "Bash(dir \"C:\\\\Nishan Projects\\\\Football_WebApp\\\\.worktrees\\\\feat-vote-submissions\")",
+      "Bash(rm:*)"
     ]
   },
   "outputStyle": "Explanatory"

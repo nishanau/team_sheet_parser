@@ -109,4 +109,17 @@ if [ -n "$used_pct" ] && [ "$used_pct" != "null" ]; then
   out="$out $SEP $ctx"
 fi
 
+# Rate limits: 5-hour session and 7-day weekly usage
+five_pct=$(json_get '.rate_limits.five_hour.used_percentage')
+week_pct=$(json_get '.rate_limits.seven_day.used_percentage')
+if [ -n "$five_pct" ] && [ "$five_pct" != "null" ]; then
+  five_int=$(printf '%.0f' "$five_pct")
+  rate_out=$(printf '\033[0;33m5h:%d%%\033[0m' "$five_int")
+  if [ -n "$week_pct" ] && [ "$week_pct" != "null" ]; then
+    week_int=$(printf '%.0f' "$week_pct")
+    rate_out="$rate_out $(printf '\033[0;33m7d:%d%%\033[0m' "$week_int")"
+  fi
+  out="$out $SEP $rate_out"
+fi
+
 printf '%s\n' "$out"

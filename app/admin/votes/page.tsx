@@ -155,7 +155,9 @@ export default function VotesPage() {
             ) : bfGroups.map(({ round, items }) => (
               <div key={round} className={styles.roundGroup}>
                 <h3 className={styles.roundHeading}>{round}</h3>
-                {items.map((sub) => <BfCard key={sub.id} sub={sub} />)}
+                <div className={styles.cards}>
+                  {items.map((sub) => <BfCard key={sub.id} sub={sub} />)}
+                </div>
               </div>
             ))}
           </section>
@@ -167,7 +169,9 @@ export default function VotesPage() {
             ) : cvGroups.map(({ round, items }) => (
               <div key={round} className={styles.roundGroup}>
                 <h3 className={styles.roundHeading}>{round}</h3>
-                {items.map((sub) => <CoachCard key={sub.id} sub={sub} />)}
+                <div className={styles.cards}>
+                  {items.map((sub) => <CoachCard key={sub.id} sub={sub} />)}
+                </div>
               </div>
             ))}
           </section>

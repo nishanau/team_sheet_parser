@@ -12,6 +12,7 @@
 
 /* Round grouping */
 .roundGroup   { margin-bottom: 28px; }
+.cards        { display: flex; flex-wrap: wrap; gap: 10px; }
 .roundHeading {
   font-size: 12px; font-weight: 700; color: var(--muted);
   text-transform: uppercase; letter-spacing: 0.06em;
@@ -25,7 +26,8 @@
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 16px;
-  margin-bottom: 10px;
+  max-width: 480px;
+  width: 480px;
 }
 .cardHeader {
   display: flex;

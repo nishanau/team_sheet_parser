@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
           eq(bestAndFairest.competition, competition),
           eq(bestAndFairest.grade,       grade ?? ""),
           eq(bestAndFairest.round,       round),
-          eq(bestAndFairest.homeTeam,    submittingTeam), // homeTeam col = submitting team
+          eq(bestAndFairest.homeTeam, submittingTeam),
         )
       );
 
@@ -198,7 +198,7 @@ export async function POST(req: NextRequest) {
       .values({
         competition, matchDate, ageGroup,
         grade:      grade ?? null,
-        homeTeam:   submittingTeam, // the team identified by the access code
+        homeTeam:   submittingTeam,
         opposition, round,
         player1Number: p1.num, player1Name: p1.name,
         player2Number: p2.num, player2Name: p2.name,
@@ -212,7 +212,7 @@ export async function POST(req: NextRequest) {
 
     logger.info("[best-and-fairest] vote submitted", {
       category: "business",
-      grade, round, homeTeam, opposition,
+      grade, round, submittingTeam, opposition,
     });
 
     return NextResponse.json({ success: true, id: inserted.id }, { status: 201 });
