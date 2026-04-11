@@ -19,3 +19,4 @@
 .tr:hover { background: var(--panel2); }
 .td      { padding: 10px 14px; font-size: 14px; color: var(--text); border-bottom: 1px solid var(--border); }
 .tdCenter { text-align: center; }
+.totals { margin-top: 14px; font-size: 13px; color: var(--muted); }

@@ -1,0 +1,69 @@
+.header  { display: flex; align-items: center; margin-bottom: 20px; }
+.title   { font-size: 20px; font-weight: 700; color: var(--text); margin: 0; }
+.filters { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
+.filters > * { flex: 1; min-width: 160px; max-width: 260px; }
+.gradeSelect   { flex: 2 !important; min-width: 200px !important; max-width: 420px !important; }
+.gradeTrigger  { white-space: normal !important; overflow: visible !important; text-overflow: unset !important; height: auto !important; }
+.hint    { color: var(--muted); font-size: 14px; }
+
+/* Sections */
+.section      { margin-bottom: 40px; }
+.sectionTitle { font-size: 16px; font-weight: 700; color: var(--text); margin: 0 0 16px; }
+
+/* Round grouping */
+.roundGroup   { margin-bottom: 28px; }
+.roundHeading {
+  font-size: 12px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  margin: 0 0 12px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Cards */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 10px;
+}
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.matchup { font-weight: 600; font-size: 14px; color: var(--text); }
+.meta    { font-size: 12px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+.badge   {
+  display: inline-block;
+  background: var(--panel2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 2px 8px;
+  font-size: 12px; color: var(--muted);
+  margin-bottom: 10px;
+}
+
+/* Player list */
+.players { list-style: none; padding: 0; margin: 0 0 12px; }
+.playerRow {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 0; font-size: 13px; color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+.playerRow:last-child { border-bottom: none; }
+.voteWeight {
+  background: var(--accent); color: white;
+  border-radius: 4px; padding: 1px 7px;
+  font-size: 11px; font-weight: 700;
+  min-width: 52px; text-align: center;
+  flex-shrink: 0;
+}
+.playerNum { color: var(--muted); font-size: 12px; min-width: 36px; flex-shrink: 0; }
+
+/* Footer */
+.cardFooter {
+  display: flex; justify-content: space-between; gap: 8px;
+  font-size: 12px; color: var(--muted);
+  border-top: 1px solid var(--border); padding-top: 10px;
+}

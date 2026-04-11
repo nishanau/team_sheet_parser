@@ -7,6 +7,9 @@ export const ROUND_OPTIONS = [
   ...Array.from({ length: 22 }, (_, i) => `Round ${i + 1}`)
 ];
 
+// ─── Competitions ────────────────────────────────────────────────────────────
+export const COMPETITIONS = ["SFL", "STJFL"];
+
 // ─── Age groups per competition ────────────────────────────────────────────
 export const AGE_GROUPS: Record<string, string[]> = {
   SFL:   ["Senior Men", "Reserves Men", "U18 Men", "Senior Women"],

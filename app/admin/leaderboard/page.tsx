@@ -3,7 +3,7 @@ import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 
 import Select from "@/app/components/Select";
-import { ROUND_OPTIONS, GRADE_MAP, CV_GRADES } from "@/lib/constants";
+import { ROUND_OPTIONS, GRADE_MAP, CV_GRADES, COMPETITIONS } from "@/lib/constants";
 import styles from "./leaderboard.module.css";
 
 type RoundRow = {
@@ -25,10 +25,8 @@ type PivotRow = {
 };
 
 type ApiResponse =
-  | { mode: "round"; rows: RoundRow[]; rounds: string[] }
-  | { mode: "pivot"; rows: PivotRow[]; rounds: string[] };
-
-const COMPETITIONS = ["SFL", "STJFL"];
+  | { mode: "round"; rows: RoundRow[]; rounds: string[]; totals: { bf: number; coaches: number } }
+  | { mode: "pivot"; rows: PivotRow[]; rounds: string[]; totals: { bf: number; coaches: number } };
 
 function allGradesFor(competition: string) {
   return Object.entries(GRADE_MAP)
@@ -223,6 +221,13 @@ export default function LeaderboardPage() {
             ))}
           </tbody>
         </table>
+      )}
+      {data && (
+        <p className={styles.totals}>
+          Best &amp; Fairest submissions: <strong>{data.totals.bf}</strong>
+          &nbsp;·&nbsp;
+          Coaches Vote submissions: <strong>{data.totals.coaches}</strong>
+        </p>
       )}
     </div>
   );
