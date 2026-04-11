@@ -39,9 +39,25 @@ export default function AccessCodesPage() {
   }
 
   function copy(id: number, code: string) {
-    navigator.clipboard.writeText(code);
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(code).catch(() => fallbackCopy(code));
+    } else {
+      fallbackCopy(code);
+    }
     setCopied(id);
     setTimeout(() => setCopied(null), 1500);
+  }
+
+  function fallbackCopy(text: string) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity  = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
   }
 
   function toggleReveal(id: number) {

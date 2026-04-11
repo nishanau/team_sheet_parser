@@ -13,46 +13,10 @@ import { BNF_GRADES, CV_GRADES } from "@/lib/constants";
  * Returns: { teamName, gradeName } on success
  *          { error } with status 401 on invalid/inactive code
  *          { error } with status 403 if the grade is not eligible for this form
- *          { error } with status 429 on rate-limit hit
- *
- * Rate limit: 10 attempts per IP per 15 minutes (brute-force protection).
  */
-
-// ── In-memory rate limiter ─────────────────────────────────────────────────
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const MAX_ATTEMPTS = 10;
-const WINDOW_MS    = 15 * 60 * 1000;
-
-function getIp(req: NextRequest): string {
-  return (
-    req.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
-    req.headers.get("x-real-ip") ??
-    "unknown"
-  );
-}
-
-function checkRateLimit(ip: string): boolean {
-  const now   = Date.now();
-  const entry = rateLimitMap.get(ip);
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + WINDOW_MS });
-    return true;
-  }
-  if (entry.count >= MAX_ATTEMPTS) return false;
-  entry.count += 1;
-  return true;
-}
 
 // ── Handler ────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  const ip = getIp(req);
-  if (!checkRateLimit(ip)) {
-    logger.warn("[verify-code] rate limit hit", { category: "auth", ip });
-    return NextResponse.json(
-      { error: "Too many attempts. Please try again in 15 minutes." },
-      { status: 429 }
-    );
-  }
 
   let body: unknown;
   try { body = await req.json(); } catch {
