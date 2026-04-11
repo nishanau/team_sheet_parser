@@ -26,10 +26,16 @@ const VOTE_LABELS = ["5", "4", "3", "2", "1"];
 function parseGrade(gradeName: string): { competition: string; ageGroup: string } {
   const sflIdx = gradeName.indexOf("SFL ");
   if (sflIdx !== -1 && gradeName.indexOf("STJFL ") === -1) {
-    // NOTE: age group strings must stay in sync with AGE_GROUPS.SFL in lib/constants.ts
-    const knownAgeGroups = ["Senior Men", "Reserves Men", "U18 Men", "Senior Women"];
+    // Maps grade name suffixes (as they appear in PlayHQ) → AGE_GROUPS.SFL values in constants.ts
+    const gradeEndingToAgeGroup: Record<string, string> = {
+      "Senior Men":    "Senior Men",
+      "Reserves Men":  "Reserves Men",
+      "U18 Boys":      "U18 Men",   // PlayHQ uses "Boys", AGE_GROUPS uses "Men"
+      "Senior Women":  "Senior Women",
+    };
     const afterSfl = gradeName.slice(sflIdx + 4);
-    const ag = knownAgeGroups.find((a) => afterSfl.endsWith(a)) ?? afterSfl;
+    const match = Object.entries(gradeEndingToAgeGroup).find(([ending]) => afterSfl.endsWith(ending));
+    const ag = match ? match[1] : afterSfl;
     return { competition: "SFL", ageGroup: ag };
   }
   const stjflIdx = gradeName.indexOf("STJFL ");
