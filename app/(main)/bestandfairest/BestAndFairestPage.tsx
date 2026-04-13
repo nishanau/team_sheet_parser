@@ -267,7 +267,7 @@ function BestAndFairestForm({
 
     // Title-case all names before validation and submission
     const normalizedPlayers = players.map((p) => ({
-      number: p.number,
+      number: p.number.trim(),
       name: toTitleCase(p.name.trim()),
     }));
 
@@ -279,8 +279,8 @@ function BestAndFairestForm({
           .map((p) => `${p.playerNumber}|${toTitleCase(`${p.firstName} ${p.lastName}`.trim())}`)
       );
       for (const p of normalizedPlayers) {
-        if (!p.number.trim() || !p.name) continue;
-        if (!rosterSet.has(`${p.number.trim()}|${p.name}`)) {
+        if (!p.number || !p.name) continue;
+        if (!rosterSet.has(`${p.number}|${p.name}`)) {
           setError(`Player #${p.number} "${p.name}" does not match any player in this match.`);
           return;
         }
@@ -289,6 +289,8 @@ function BestAndFairestForm({
 
     setSubmitting(true);
     try {
+      // The accessCode is re-sent on every submission so the server can verify
+      // the code is still active. It comes from sessionStorage (tab lifetime only).
       const res = await fetch("/api/best-and-fairest", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
@@ -313,6 +315,8 @@ function BestAndFairestForm({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Submission failed.");
       setSubmitted(true);
+      // Increment the server-seeded count for this round so the UI stays accurate
+      // without needing a round-trip to re-fetch fixtures.
       setSubmittedByRound((prev) => ({
         ...prev,
         [selectedFixture.roundName]: (prev[selectedFixture.roundName] ?? 0) + 1,
