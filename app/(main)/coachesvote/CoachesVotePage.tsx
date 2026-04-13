@@ -6,6 +6,7 @@ import matchStyles from "./CoachesVote.module.css";
 import PlayerInput from "../../components/PlayerInput";
 import type { GamePlayer } from "@/app/api/game-players/route";
 import { useVerifiedSession } from "@/lib/useVerifiedSession";
+import { toTitleCase } from "@/lib/utils";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 type CoachesVoteGrade = "SFL Community League Senior Men" | "SFL Community League Senior Women";
@@ -235,6 +236,29 @@ function CoachesVoteForm({
       return;
     }
 
+    // Title-case all names before validation and submission
+    const normalizedPlayers = players.map((p) => ({
+      number: p.number.trim(),
+      name: toTitleCase(p.name.trim()),
+    }));
+
+    // Validate (number, name) pairs against fetched roster — use raw arrays (no [H]/[A] prefix)
+    const rawGamePlayers = [...homePlayers, ...awayPlayers];
+    if (rawGamePlayers.length > 0) {
+      const rosterSet = new Set(
+        rawGamePlayers
+          .filter((p) => p.playerNumber)
+          .map((p) => `${p.playerNumber}|${toTitleCase(`${p.firstName} ${p.lastName}`.trim())}`)
+      );
+      for (const p of normalizedPlayers) {
+        if (!p.number || !p.name) continue;
+        if (!rosterSet.has(`${p.number}|${p.name}`)) {
+          setError(`Player #${p.number} "${p.name}" does not match any player in this match.`);
+          return;
+        }
+      }
+    }
+
     setSubmitting(true);
     try {
       const res = await fetch("/api/coaches-vote", {
@@ -248,16 +272,11 @@ function CoachesVoteForm({
           homeTeam:  selectedFixture.homeTeamName,
           awayTeam:  selectedFixture.awayTeamName,
           coachTeam,
-          player1Number: players[0].number || null,
-          player1Name:   players[0].name   || null,
-          player2Number: players[1].number || null,
-          player2Name:   players[1].name   || null,
-          player3Number: players[2].number || null,
-          player3Name:   players[2].name   || null,
-          player4Number: players[3].number || null,
-          player4Name:   players[3].name   || null,
-          player5Number: players[4].number || null,
-          player5Name:   players[4].name   || null,
+          player1Number: normalizedPlayers[0].number || null, player1Name: normalizedPlayers[0].name || null,
+          player2Number: normalizedPlayers[1].number || null, player2Name: normalizedPlayers[1].name || null,
+          player3Number: normalizedPlayers[2].number || null, player3Name: normalizedPlayers[2].name || null,
+          player4Number: normalizedPlayers[3].number || null, player4Name: normalizedPlayers[3].name || null,
+          player5Number: normalizedPlayers[4].number || null, player5Name: normalizedPlayers[4].name || null,
           submitterName: submitterName.trim(),
           signatureDataUrl: initials.trim(),
         }),
