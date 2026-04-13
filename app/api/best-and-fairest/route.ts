@@ -4,6 +4,7 @@ import { bestAndFairest, leagues, teamAccessCodes, teamPlayers } from "@/db/sche
 import { and, eq, desc, count } from "drizzle-orm";
 import { ROUND_OPTIONS as ROUND_OPTIONS_ARR, AGE_GROUPS, GRADE_MAP } from "@/lib/constants";
 import { logger } from "@/lib/logger";
+import { toTitleCase } from "@/lib/utils";
 
 // ─── Validation constants ─────────────────────────────────────────────────────
 const DATE_RE     = /^\d{4}-\d{2}-\d{2}$/;
@@ -177,7 +178,11 @@ export async function POST(req: NextRequest) {
 
     // ── Players must be from the submitting team's roster ────────────────────
     const rosterRows = await db
-      .select({ playerNumber: teamPlayers.playerNumber })
+      .select({
+        playerNumber: teamPlayers.playerNumber,
+        firstName:    teamPlayers.firstName,
+        lastName:     teamPlayers.lastName,
+      })
       .from(teamPlayers)
       .where(eq(teamPlayers.teamName, submittingTeam));
 
@@ -192,6 +197,29 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── Name check ───────────────────────────────────────────────────────────
+    // If the roster has data, the submitted name must match the stored name for
+    // the given number. Players with no stored name are skipped (data quality gap).
+    if (rosterRows.length > 0) {
+      const rosterByNumber = new Map<string, Set<string>>();
+      for (const r of rosterRows) {
+        if (!r.playerNumber) continue;
+        if (!rosterByNumber.has(r.playerNumber)) rosterByNumber.set(r.playerNumber, new Set());
+        const fullName = `${r.firstName} ${r.lastName}`.trim();
+        if (fullName) rosterByNumber.get(r.playerNumber)!.add(toTitleCase(fullName));
+      }
+      for (const p of [p1, p2, p3, p4, p5]) {
+        const validNames = rosterByNumber.get(p.num);
+        if (!validNames || validNames.size === 0) continue;
+        if (!validNames.has(toTitleCase(p.name))) {
+          return NextResponse.json(
+            { error: `Player #${p.num} name does not match the team roster.` },
+            { status: 422 }
+          );
+        }
+      }
+    }
+
     // ── Insert ────────────────────────────────────────────────────────────────
     const [inserted] = await db
       .insert(bestAndFairest)
@@ -200,11 +228,11 @@ export async function POST(req: NextRequest) {
         grade:      grade ?? null,
         homeTeam:   submittingTeam,
         opposition, round,
-        player1Number: p1.num, player1Name: p1.name,
-        player2Number: p2.num, player2Name: p2.name,
-        player3Number: p3.num, player3Name: p3.name,
-        player4Number: p4.num, player4Name: p4.name,
-        player5Number: p5.num, player5Name: p5.name,
+        player1Number: p1.num, player1Name: toTitleCase(p1.name),
+        player2Number: p2.num, player2Name: toTitleCase(p2.name),
+        player3Number: p3.num, player3Name: toTitleCase(p3.name),
+        player4Number: p4.num, player4Name: toTitleCase(p4.name),
+        player5Number: p5.num, player5Name: toTitleCase(p5.name),
         submitterName,
         signatureDataUrl: initials,
       })
