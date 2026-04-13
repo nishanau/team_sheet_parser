@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { coachesVotes, teamAccessCodes } from "@/db/schema";
-import { and, eq, desc } from "drizzle-orm";
+import { coachesVotes, teamAccessCodes, teamPlayers } from "@/db/schema";
+import { and, eq, desc, or } from "drizzle-orm";
 import { ROUND_OPTIONS as ROUND_OPTIONS_ARR } from "@/lib/constants";
 import { logger } from "@/lib/logger";
+import { toTitleCase } from "@/lib/utils";
 
 // Only these two grades are valid for Coaches Vote
 export const COACHES_VOTE_GRADES = [
@@ -161,17 +162,55 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ── Roster name check ─────────────────────────────────────────────────────
+    // Validate submitted (number, name) pairs against both teams' stored players.
+    // Uses a Map<number, Set<name>> so jersey numbers shared across both teams
+    // retain all valid names. Players with no stored name are skipped (data gap).
+    const rosterRows = await db
+      .select({
+        playerNumber: teamPlayers.playerNumber,
+        firstName:    teamPlayers.firstName,
+        lastName:     teamPlayers.lastName,
+      })
+      .from(teamPlayers)
+      .where(
+        or(
+          eq(teamPlayers.teamName, homeTeam),
+          eq(teamPlayers.teamName, awayTeam),
+        )
+      );
+
+    if (rosterRows.length > 0) {
+      const rosterByNumber = new Map<string, Set<string>>();
+      for (const r of rosterRows) {
+        if (!r.playerNumber) continue;
+        if (!rosterByNumber.has(r.playerNumber)) rosterByNumber.set(r.playerNumber, new Set());
+        const fullName = `${r.firstName} ${r.lastName}`.trim();
+        if (fullName) rosterByNumber.get(r.playerNumber)!.add(toTitleCase(fullName));
+      }
+      for (const p of [p1, p2, p3, p4, p5]) {
+        const validNames = rosterByNumber.get(p.num);
+        if (!validNames || validNames.size === 0) continue;
+        if (!validNames.has(toTitleCase(p.name))) {
+          return NextResponse.json(
+            { error: `Player #${p.num} name does not match the match roster.` },
+            { status: 422 }
+          );
+        }
+      }
+    }
+
     // ── Insert ────────────────────────────────────────────────────────────────
     const [inserted] = await db
       .insert(coachesVotes)
       .values({
         grade, round, matchDate,
         homeTeam, awayTeam, coachTeam,
-        player1Number: p1.num, player1Name: p1.name,
-        player2Number: p2.num, player2Name: p2.name,
-        player3Number: p3.num, player3Name: p3.name,
-        player4Number: p4.num, player4Name: p4.name,
-        player5Number: p5.num, player5Name: p5.name,
+        player1Number: p1.num, player1Name: toTitleCase(p1.name),
+        player2Number: p2.num, player2Name: toTitleCase(p2.name),
+        player3Number: p3.num, player3Name: toTitleCase(p3.name),
+        player4Number: p4.num, player4Name: toTitleCase(p4.name),
+        player5Number: p5.num, player5Name: toTitleCase(p5.name),
         submitterName,
         signatureDataUrl: initials,
       })
