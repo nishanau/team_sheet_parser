@@ -191,3 +191,25 @@ export const teamAccessCodes = sqliteTable("team_access_codes", {
 
 export type TeamAccessCodeInsert = typeof teamAccessCodes.$inferInsert;
 export type TeamAccessCodeSelect = typeof teamAccessCodes.$inferSelect;
+
+// --- Vote Window Overrides ---------------------------------------------------
+// Allows admins to extend the voting window beyond the global VOTE_WINDOW config.
+// fixtureId = null -> round-level override (superadmin only)
+// fixtureId = set  -> match-level override
+// Resolution order: match-level > round-level > VOTE_WINDOW default
+export const voteWindowOverrides = sqliteTable("vote_window_overrides", {
+  id:            integer("id").primaryKey({ autoIncrement: true }),
+  competition:   text("competition").notNull(),
+  grade:         text("grade").notNull(),
+  round:         text("round").notNull(),
+  fixtureId:     text("fixture_id").references(() => fixtures.id, { onDelete: "cascade" }),
+  extendedUntil: text("extended_until").notNull(), // YYYY-MM-DD
+  createdBy:     integer("created_by").notNull().references(() => adminUsers.id),
+  createdAt:     text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+}, (t) => [
+  index("vwo_grade_round_idx").on(t.competition, t.grade, t.round),
+  index("vwo_fixture_idx").on(t.fixtureId),
+]);
+
+export type VoteWindowOverrideInsert = typeof voteWindowOverrides.$inferInsert;
+export type VoteWindowOverrideSelect = typeof voteWindowOverrides.$inferSelect;

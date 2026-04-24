@@ -1,9 +1,9 @@
 "use client";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useState, useEffect } from "react";
 
 import Select from "@/app/components/Select";
-import { ROUND_OPTIONS, GRADE_MAP, CV_GRADES, COMPETITIONS } from "@/lib/constants";
+import { COMPETITIONS, CV_GRADES, GRADE_MAP, ROUND_OPTIONS } from "@/lib/constants";
 import styles from "./leaderboard.module.css";
 
 type RoundRow = {
@@ -35,9 +35,7 @@ function allGradesFor(competition: string) {
     .filter((g) => g.length > 0);
 }
 
-// URL params take precedence (bookmarked/shared URL), then sessionStorage (came back via sidebar).
-function getInitialParam(urlKey: string, storageKey: string, fallback = "") {
-  if (typeof window === "undefined") return fallback;
+function readInitialParam(urlKey: string, storageKey: string, fallback = "") {
   const urlVal = new URLSearchParams(window.location.search).get(urlKey);
   if (urlVal !== null) return urlVal;
   return sessionStorage.getItem(storageKey) ?? fallback;
@@ -46,11 +44,14 @@ function getInitialParam(urlKey: string, storageKey: string, fallback = "") {
 function exportRoundCSV(rows: RoundRow[], grade: string, round: string) {
   const headers = "Rank,Player,Number,Team,Round Votes,Total Votes";
   const lines = rows.map(
-    (r) => `${r.rank},"${r.playerName}","${r.playerNumber ?? ""}","${r.team}",${r.roundVotes},${r.totalVotes}`
+    (r) => `${r.rank},"${r.playerName}","${r.playerNumber ?? ""}","${r.team}",${r.roundVotes},${r.totalVotes}`,
   );
   const blob = new Blob([[headers, ...lines].join("\n")], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
-  const a = Object.assign(document.createElement("a"), { href: url, download: `leaderboard-${grade}-${round}.csv` });
+  const a = Object.assign(document.createElement("a"), {
+    href: url,
+    download: `leaderboard-${grade}-${round}.csv`,
+  });
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -64,7 +65,10 @@ function exportPivotCSV(rows: PivotRow[], rounds: string[], grade: string) {
   });
   const blob = new Blob([[headers, ...lines].join("\n")], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
-  const a = Object.assign(document.createElement("a"), { href: url, download: `leaderboard-${grade}-all.csv` });
+  const a = Object.assign(document.createElement("a"), {
+    href: url,
+    download: `leaderboard-${grade}-all.csv`,
+  });
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -73,57 +77,63 @@ export default function LeaderboardPage() {
   const { data: session } = useSession();
   const isSuperadmin = session?.user?.role === "superadmin";
 
-  const [tab, setTab] = useState<"bf" | "coaches">(() => {
-    const v = getInitialParam("tab", "lb:tab");
-    return v === "coaches" ? "coaches" : "bf";
-  });
-  const [competition, setCompetition] = useState(() => getInitialParam("competition", "lb:competition", "SFL"));
-  const [grade, setGrade]             = useState(() => getInitialParam("grade", "lb:grade"));
-  const [round, setRound]             = useState(() => getInitialParam("round", "lb:round", "all"));
-  const [data, setData]   = useState<ApiResponse | null>(null);
+  // Use stable defaults for SSR/first client render, then restore URL/session state after mount.
+  const [tab, setTab] = useState<"bf" | "coaches">("bf");
+  const [competition, setCompetition] = useState("SFL");
+  const [grade, setGrade] = useState("");
+  const [round, setRound] = useState("all");
+  const [filtersReady, setFiltersReady] = useState(false);
+  const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // scopedGrades is baked into the session at login for club admins — no API round-trip needed
   const sessionScopedGrades = session?.user?.scopedGrades ?? null;
-
-  // hasCoachesTab is baked into the session at login — no API round-trip needed
   const hasCoachesTab = session?.user?.hasCoachesTab ?? isSuperadmin;
 
-  // Grade options depend on active tab and role:
-  // • coaches: always the CV_GRADES list
-  // • bf superadmin: all grades for the selected competition (available synchronously)
-  // • bf club admin: their grades from the session token (available as soon as session loads)
-  const allBfGrades = isSuperadmin
-    ? allGradesFor(competition)
-    : (sessionScopedGrades ?? []);
+  const allBfGrades = isSuperadmin ? allGradesFor(competition) : (sessionScopedGrades ?? []);
   const grades = tab === "coaches" ? [...CV_GRADES] : allBfGrades;
 
-  // Persist filter state so navigation away and back restores context.
-  // sessionStorage survives sidebar navigation (URL resets); URL keeps the state bookmarkable.
   useEffect(() => {
+    const nextTab = readInitialParam("tab", "lb:tab");
+    const nextCompetition = readInitialParam("competition", "lb:competition", "SFL");
+    const nextGrade = readInitialParam("grade", "lb:grade");
+    const nextRound = readInitialParam("round", "lb:round", "all");
+
+    setTab(nextTab === "coaches" ? "coaches" : "bf");
+    setCompetition(nextCompetition);
+    setGrade(nextGrade);
+    setRound(nextRound);
+    setFiltersReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!filtersReady) return;
+
     sessionStorage.setItem("lb:tab", tab);
     sessionStorage.setItem("lb:competition", competition);
     sessionStorage.setItem("lb:grade", grade);
     sessionStorage.setItem("lb:round", round);
+
     const params = new URLSearchParams();
     if (tab !== "bf") params.set("tab", tab);
     if (competition !== "SFL") params.set("competition", competition);
     if (grade) params.set("grade", grade);
     if (round !== "all") params.set("round", round);
+
     const qs = params.toString();
     window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-  }, [tab, competition, grade, round]);
+  }, [filtersReady, tab, competition, grade, round]);
 
-  // Reset grade when competition changes — done in the setter, not an effect
   function handleCompetitionChange(val: string) {
     setCompetition(val);
     setGrade("");
   }
 
   useEffect(() => {
-    if (!grade) return;
+    if (!filtersReady || !grade) return;
+
     const params = new URLSearchParams({ type: tab, competition, round });
     params.set("grade", grade);
+
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -135,8 +145,22 @@ export default function LeaderboardPage() {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
-  }, [tab, competition, grade, round]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filtersReady, tab, competition, grade, round]);
+
+  useEffect(() => {
+    if (grade && !grades.includes(grade)) {
+      setGrade("");
+      setData(null);
+    }
+  }, [grade, grades]);
+
+  useEffect(() => {
+    if (!grade) setData(null);
+  }, [grade]);
 
   const isEmpty = !data || data.rows.length === 0;
 
@@ -146,7 +170,6 @@ export default function LeaderboardPage() {
     else exportRoundCSV(data.rows, grade, round);
   }
 
-  // ── Column totals for tfoot rows ───────────────────────────────────────────
   const pivotTotals = (() => {
     if (!data || isEmpty || data.mode !== "pivot") return null;
     const byRound: Record<string, number> = {};
@@ -177,13 +200,20 @@ export default function LeaderboardPage() {
         <div className={styles.tabs}>
           <button
             className={`${styles.tab} ${tab === "bf" ? styles.tabActive : ""}`}
-            onClick={() => { setTab("bf"); setGrade(""); }}
+            onClick={() => {
+              setTab("bf");
+              setGrade("");
+            }}
           >
             Best &amp; Fairest
           </button>
           <button
             className={`${styles.tab} ${tab === "coaches" ? styles.tabActive : ""}`}
-            onClick={() => { setTab("coaches"); setCompetition("SFL"); setGrade(""); }}
+            onClick={() => {
+              setTab("coaches");
+              setCompetition("SFL");
+              setGrade("");
+            }}
           >
             Coaches Votes
           </button>
@@ -194,16 +224,22 @@ export default function LeaderboardPage() {
         {isSuperadmin && tab === "bf" && (
           <Select value={competition} onChange={handleCompetitionChange} options={COMPETITIONS} />
         )}
-        <Select value={grade} onChange={setGrade} options={grades} placeholder="Select Grade" className={styles.gradeSelect} triggerClassName={styles.gradeTrigger} />
+        <Select
+          value={grade}
+          onChange={setGrade}
+          options={grades}
+          placeholder="Select Grade"
+          className={styles.gradeSelect}
+          triggerClassName={styles.gradeTrigger}
+        />
         <Select value={round} onChange={setRound} options={["all", ...ROUND_OPTIONS]} />
       </div>
 
       {loading ? (
-        <p className={styles.hint}>Loading…</p>
+        <p className={styles.hint}>Loading...</p>
       ) : isEmpty ? (
         <p className={styles.hint}>No votes found for the selected filters.</p>
       ) : data.mode === "pivot" ? (
-        /* ── Pivot table: All rounds ─────────────────────────────── */
         <div className={styles.tableWrap}>
           <table className={styles.table}>
             <thead>
@@ -223,11 +259,11 @@ export default function LeaderboardPage() {
                 <tr key={`${r.playerName}-${r.playerNumber}-${r.team}`} className={styles.tr}>
                   <td className={styles.td}>{r.rank}</td>
                   <td className={styles.td}>{r.playerName}</td>
-                  <td className={styles.td}>{r.playerNumber ?? "—"}</td>
+                  <td className={styles.td}>{r.playerNumber ?? "-"}</td>
                   <td className={styles.td}>{r.team}</td>
                   {data.rounds.map((rnd) => (
                     <td key={rnd} className={`${styles.td} ${styles.tdCenter}`}>
-                      {r.roundBreakdown[rnd] ?? "—"}
+                      {r.roundBreakdown[rnd] ?? "-"}
                     </td>
                   ))}
                   <td className={`${styles.td} ${styles.tdCenter}`}>
@@ -253,7 +289,6 @@ export default function LeaderboardPage() {
           </table>
         </div>
       ) : (
-        /* ── Single round table ──────────────────────────────────── */
         <table className={styles.table}>
           <thead>
             <tr>
@@ -270,9 +305,9 @@ export default function LeaderboardPage() {
               <tr key={`${r.playerName}-${r.playerNumber}-${r.team}`} className={styles.tr}>
                 <td className={styles.td}>{r.rank}</td>
                 <td className={styles.td}>{r.playerName}</td>
-                <td className={styles.td}>{r.playerNumber ?? "—"}</td>
+                <td className={styles.td}>{r.playerNumber ?? "-"}</td>
                 <td className={styles.td}>{r.team}</td>
-                <td className={`${styles.td} ${styles.tdCenter}`}>{r.roundVotes || "—"}</td>
+                <td className={`${styles.td} ${styles.tdCenter}`}>{r.roundVotes || "-"}</td>
                 <td className={`${styles.td} ${styles.tdCenter}`}>
                   <strong>{r.totalVotes}</strong>
                 </td>
@@ -293,10 +328,11 @@ export default function LeaderboardPage() {
           </tfoot>
         </table>
       )}
+
       {data && (
         <p className={styles.totals}>
           Best &amp; Fairest submissions: <strong>{data.totals.bf}</strong>
-          &nbsp;·&nbsp;
+          {" · "}
           Coaches Vote submissions: <strong>{data.totals.coaches}</strong>
         </p>
       )}

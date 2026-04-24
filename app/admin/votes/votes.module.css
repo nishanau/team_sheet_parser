@@ -2,7 +2,7 @@
 .title   { font-size: 20px; font-weight: 700; color: var(--text); margin: 0; }
 .filters { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
 .filters > * { flex: 1; min-width: 160px; max-width: 260px; }
-.gradeSelect   { flex: 2 !important; min-width: 200px !important; max-width: 420px !important; }
+.gradeSelect   { flex: 2 !important; min-width: 260px !important; max-width: 560px !important; }
 .gradeTrigger  { white-space: normal !important; overflow: visible !important; text-overflow: unset !important; height: auto !important; }
 .hint    { color: var(--muted); font-size: 14px; }
 

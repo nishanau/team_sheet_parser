@@ -9,7 +9,7 @@
 .tabActive { color: var(--text) !important; font-weight: 600; border-bottom-color: var(--accent) !important; background: rgba(124,92,255,.08); border-radius: 6px 6px 0 0; }
 .filters { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
 .filters > * { flex: 1; min-width: 160px; max-width: 260px; }
-.gradeSelect { flex: 2 !important; min-width: 200px !important; max-width: 420px !important; }
+.gradeSelect { flex: 2 !important; min-width: 260px !important; max-width: 560px !important; }
 .gradeTrigger { white-space: normal !important; overflow: visible !important; text-overflow: unset !important; height: auto !important; }
 .hint    { color: var(--muted); font-size: 14px; }
 .tableWrap { overflow-x: auto; }

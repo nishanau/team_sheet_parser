@@ -92,7 +92,7 @@ export const CV_GRADES = new Set([
 // daysAfterMatch: how many calendar days after match day votes are still accepted.
 //   0 = match day only, 1 = match day + next day, 7 = up to a week later, etc.
 export const VOTE_WINDOW = {
-  enforce:        false,
+  enforce:        true,
   daysAfterMatch: 1,
 } as const;
 

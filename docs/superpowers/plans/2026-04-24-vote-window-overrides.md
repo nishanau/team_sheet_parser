@@ -1219,13 +1219,20 @@ git commit -m "feat(admin): wire vote-windows nav and fixture picker"
 
 ## Manual Test Checklist
 
+> **Pre-condition:** `VOTE_WINDOW.enforce` in `lib/constants.ts` must be `true` for window checks to
+> be testable. It is currently `false` (disabled for development). Temporarily set it to `true`
+> and `daysAfterMatch: 0` (match-day only) before running these tests, then restore after.
+
 After all tasks are complete, verify end-to-end:
 
-1. Log in as **superadmin**. Navigate to **Vote Windows**.
-2. Create a **round-level** override: pick SFL → any grade → Round 1 → leave fixture blank → set extendedUntil = today's date. Save. Confirm it appears in the table.
-3. Open the BNF or CV form with an access code for a team in that grade. Confirm Round 1 matches are now clickable (even if they're old).
-4. Create a **fixture-level** override for a specific match in Round 2. Confirm only that fixture's `canVote` changes, not the others.
-5. Delete the round-level override. Confirm Round 1 matches are blocked again.
-6. Log in as **club_admin**. Confirm the round-level option ("All matches in this round") is absent from the fixture dropdown.
-7. Confirm club_admin can only see grades in their `scopedGrades`.
-8. Confirm club_admin cannot delete a superadmin-created override (expect 403).
+1. Set `VOTE_WINDOW = { enforce: true, daysAfterMatch: 0 }` in `lib/constants.ts`.
+2. Log in as **superadmin**. Navigate to **Vote Windows**.
+3. Create a **round-level** override: pick SFL → any grade → Round 1 → leave fixture blank → set `extendedUntil` = today's date. Save. Confirm it appears in the table.
+4. Open the BNF or CV form with an access code for a team in that grade. Confirm Round 1 fixtures (played before today) now show as clickable rather than "Outside voting window".
+5. Create a **fixture-level** override for one specific match in Round 2. Confirm only that fixture's `canVote` flips to true — the other Round 2 fixtures remain blocked.
+6. Delete the round-level override. Confirm Round 1 fixtures are blocked again ("Outside voting window").
+7. Log in as **club_admin**. Confirm the "All matches in this round" option is absent from the fixture dropdown.
+8. Confirm club_admin only sees overrides for grades in their `scopedGrades`.
+9. Confirm club_admin creating an override for a fixture not involving their teams returns 403.
+10. Confirm club_admin cannot delete a superadmin-created override (expect 403).
+11. Restore `VOTE_WINDOW = { enforce: false, daysAfterMatch: 1 }` after testing.

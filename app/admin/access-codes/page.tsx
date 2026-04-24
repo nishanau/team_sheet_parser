@@ -1,6 +1,8 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
+
+import Select from "@/app/components/Select";
 import styles from "./access-codes.module.css";
 
 type CodeRow = { id: number; teamName: string; gradeName: string; code: string; active: boolean };
@@ -9,12 +11,11 @@ export default function AccessCodesPage() {
   const { data: session } = useSession();
   const isClubAdmin = session?.user?.role === "club_admin";
 
-  const [rows,    setRows]    = useState<CodeRow[]>([]);
+  const [rows, setRows] = useState<CodeRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [copied,  setCopied]  = useState<number | null>(null);
-  const [search,  setSearch]  = useState("");
-  const [grade,   setGrade]   = useState("");
-  // Track which rows have had their code revealed
+  const [copied, setCopied] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
+  const [grade, setGrade] = useState("");
   const [revealed, setRevealed] = useState<Set<number>>(new Set());
 
   useEffect(() => {
@@ -25,17 +26,28 @@ export default function AccessCodesPage() {
   }, []);
 
   async function regenerate(id: number) {
-    const res  = await fetch("/api/admin/access-codes", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, action: "regenerate" }) });
+    const res = await fetch("/api/admin/access-codes", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, action: "regenerate" }),
+    });
     const data = await res.json() as { code: string };
-    setRows((prev) => prev.map((r) => r.id === id ? { ...r, code: data.code } : r));
-    // Hide again after regenerating
-    setRevealed((prev) => { const s = new Set(prev); s.delete(id); return s; });
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, code: data.code } : r)));
+    setRevealed((prev) => {
+      const s = new Set(prev);
+      s.delete(id);
+      return s;
+    });
   }
 
   async function toggle(id: number) {
-    const res  = await fetch("/api/admin/access-codes", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, action: "toggle" }) });
+    const res = await fetch("/api/admin/access-codes", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, action: "toggle" }),
+    });
     const data = await res.json() as { active: boolean };
-    setRows((prev) => prev.map((r) => r.id === id ? { ...r, active: data.active } : r));
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, active: data.active } : r)));
   }
 
   function copy(id: number, code: string) {
@@ -52,7 +64,7 @@ export default function AccessCodesPage() {
     const ta = document.createElement("textarea");
     ta.value = text;
     ta.style.position = "fixed";
-    ta.style.opacity  = "0";
+    ta.style.opacity = "0";
     document.body.appendChild(ta);
     ta.focus();
     ta.select();
@@ -68,20 +80,18 @@ export default function AccessCodesPage() {
     });
   }
 
-  // Unique grade list for the filter dropdown (not shown to club admins)
   const grades = useMemo(() => [...new Set(rows.map((r) => r.gradeName))].sort(), [rows]);
 
-  // Client-side filtering
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
-      const matchesGrade  = !grade || r.gradeName === grade;
+      const matchesGrade = !grade || r.gradeName === grade;
       const matchesSearch = !q || r.teamName.toLowerCase().includes(q);
       return matchesGrade && matchesSearch;
     });
   }, [rows, search, grade]);
 
-  if (loading) return <p>Loading…</p>;
+  if (loading) return <p>Loading...</p>;
 
   return (
     <div>
@@ -92,18 +102,17 @@ export default function AccessCodesPage() {
           <input
             className={styles.searchInput}
             type="search"
-            placeholder="Search team…"
+            placeholder="Search team..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <select
+          <Select
             className={styles.gradeSelect}
             value={grade}
-            onChange={(e) => setGrade(e.target.value)}
-          >
-            <option value="">All grades</option>
-            {grades.map((g) => <option key={g} value={g}>{g}</option>)}
-          </select>
+            onChange={setGrade}
+            options={grades}
+            placeholder="All Grades"
+          />
         </div>
       )}
 
@@ -119,7 +128,11 @@ export default function AccessCodesPage() {
         </thead>
         <tbody>
           {filtered.length === 0 && (
-            <tr><td className={styles.td} colSpan={isClubAdmin ? 4 : 5} style={{ color: "#94a3b8" }}>No results.</td></tr>
+            <tr>
+              <td className={styles.td} colSpan={isClubAdmin ? 4 : 5} style={{ color: "#94a3b8" }}>
+                No results.
+              </td>
+            </tr>
           )}
           {filtered.map((r) => {
             const isRevealed = revealed.has(r.id);
@@ -129,7 +142,7 @@ export default function AccessCodesPage() {
                 {!isClubAdmin && <td className={styles.td}>{r.gradeName}</td>}
                 <td className={styles.td}>
                   <code className={styles.code}>
-                    {isClubAdmin && !isRevealed ? "●●●●-●●●●" : r.code}
+                    {isClubAdmin && !isRevealed ? "••••-••••" : r.code}
                   </code>
                 </td>
                 <td className={styles.td}>
@@ -165,4 +178,3 @@ export default function AccessCodesPage() {
     </div>
   );
 }
-

@@ -1,10 +1,10 @@
 "use client";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useState, useEffect } from "react";
 
-import Select from "@/app/components/Select";
-import { GRADE_MAP, ROUND_OPTIONS, COMPETITIONS } from "@/lib/constants";
 import type { BestAndFairestSelect, CoachesVoteSelect } from "@/db/schema";
+import Select from "@/app/components/Select";
+import { COMPETITIONS, GRADE_MAP, ROUND_OPTIONS } from "@/lib/constants";
 import styles from "./votes.module.css";
 
 const VOTE_WEIGHTS = [5, 4, 3, 2, 1] as const;
@@ -22,7 +22,7 @@ function groupByRound<T extends { round: string }>(items: T[]): { round: string;
   const map = new Map<string, T[]>();
   for (const item of items) {
     if (!map.has(item.round)) map.set(item.round, []);
-    map.get(item.round)!.push(item);
+    map.get(item.round)?.push(item);
   }
   return ROUND_OPTIONS.filter((r) => map.has(r)).map((r) => ({ round: r, items: map.get(r)! }));
 }
@@ -48,7 +48,7 @@ function PlayerList({ sub }: { sub: BestAndFairestSelect | CoachesVoteSelect }) 
       {players.map((p, i) => (
         <li key={p.name} className={styles.playerRow}>
           <span className={styles.voteWeight}>{VOTE_WEIGHTS[i]} votes</span>
-          <span className={styles.playerNum}>#{p.num ?? "—"}</span>
+          <span className={styles.playerNum}>#{p.num ?? "-"}</span>
           <span>{p.name}</span>
         </li>
       ))}
@@ -90,33 +90,42 @@ function CoachCard({ sub }: { sub: CoachesVoteSelect }) {
   );
 }
 
-function getInitialParam(urlKey: string, storageKey: string, fallback = "") {
-  if (typeof window === "undefined") return fallback;
+function readInitialParam(urlKey: string, storageKey: string, fallback = "") {
   const urlVal = new URLSearchParams(window.location.search).get(urlKey);
   if (urlVal !== null) return urlVal;
   return sessionStorage.getItem(storageKey) ?? fallback;
 }
 
 export default function VotesPage() {
-  useSession(); // ensures session context is available via SessionProvider in layout
+  useSession();
 
-  const [competition, setCompetition] = useState(() => getInitialParam("competition", "votes:competition", "SFL"));
-  const [grade, setGrade]             = useState(() => getInitialParam("grade", "votes:grade"));
-  const [data, setData]   = useState<ApiResponse | null>(null);
+  const [competition, setCompetition] = useState("SFL");
+  const [grade, setGrade] = useState("");
+  const [filtersReady, setFiltersReady] = useState(false);
+  const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
   const grades = allGradesFor(competition);
 
-  // Persist filter state so navigation away and back restores context.
   useEffect(() => {
+    setCompetition(readInitialParam("competition", "votes:competition", "SFL"));
+    setGrade(readInitialParam("grade", "votes:grade"));
+    setFiltersReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!filtersReady) return;
+
     sessionStorage.setItem("votes:competition", competition);
     sessionStorage.setItem("votes:grade", grade);
+
     const params = new URLSearchParams();
     if (competition !== "SFL") params.set("competition", competition);
     if (grade) params.set("grade", grade);
+
     const qs = params.toString();
     window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-  }, [competition, grade]);
+  }, [filtersReady, competition, grade]);
 
   function handleCompetitionChange(val: string) {
     setCompetition(val);
@@ -125,7 +134,18 @@ export default function VotesPage() {
   }
 
   useEffect(() => {
-    if (!grade) { setData(null); return; }
+    if (grade && !grades.includes(grade)) {
+      setGrade("");
+      setData(null);
+    }
+  }, [grade, grades]);
+
+  useEffect(() => {
+    if (!filtersReady || !grade) {
+      setData(null);
+      return;
+    }
+
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -136,11 +156,14 @@ export default function VotesPage() {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
-  }, [grade]);
 
-  const bfGroups  = data ? groupByRound(data.bf)      : [];
-  const cvGroups  = data ? groupByRound(data.coaches)  : [];
+    return () => {
+      cancelled = true;
+    };
+  }, [filtersReady, grade]);
+
+  const bfGroups = data ? groupByRound(data.bf) : [];
+  const cvGroups = data ? groupByRound(data.coaches) : [];
 
   return (
     <div>
@@ -161,7 +184,7 @@ export default function VotesPage() {
       </div>
 
       {loading ? (
-        <p className={styles.hint}>Loading…</p>
+        <p className={styles.hint}>Loading...</p>
       ) : !grade ? (
         <p className={styles.hint}>Select a grade to view submissions.</p>
       ) : (

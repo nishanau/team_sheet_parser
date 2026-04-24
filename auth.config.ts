@@ -19,6 +19,7 @@ export const authConfig = {
       return token;
     },
     session({ session, token }) {
+      session.user.id            = token.sub as string;
       session.user.role          = token.role as string;
       session.user.clubId        = token.clubId as number | null;
       session.user.leagueId      = token.leagueId as number | null;

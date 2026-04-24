@@ -5,28 +5,24 @@
   width: 100%;
 }
 
-/* The visible trigger button */
 .trigger {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
+  width: 100%;
+  min-width: 0;
   padding: 10px 14px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.06);
   color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  outline: none;
   font-size: 14px;
   font-family: inherit;
-  cursor: pointer;
-  outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
-  width: 100%;
   text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .trigger:hover {
@@ -39,59 +35,79 @@
   box-shadow: 0 0 0 2px rgba(124, 92, 255, 0.18);
 }
 
+.triggerDisabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: break-word;
+}
+
+.placeholder {
+  opacity: 0.45;
+}
+
 .caret {
   flex-shrink: 0;
   width: 16px;
   height: 16px;
+  margin-top: 2px;
   opacity: 0.6;
   transition: transform 0.15s;
 }
 
 .triggerWrap {
+  height: auto;
+  align-items: flex-start;
   white-space: normal;
   overflow: visible;
   text-overflow: unset;
-  height: auto;
-  align-items: flex-start;
 }
 
-/* Dropdown panel */
 .menu {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
-  right: 0;
   z-index: 200;
+  width: max-content;
+  min-width: 100%;
+  max-width: min(90vw, 720px);
+  max-height: 260px;
+  padding: 6px;
+  overflow-y: auto;
+  overflow-x: auto;
   background: #141a2e;
   border: 1px solid var(--border);
   border-radius: 14px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
-  padding: 6px;
-  max-height: 260px;
-  overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,.15) transparent;
-  /* Animate in */
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
   animation: dropIn 0.12s ease;
 }
 
 @keyframes dropIn {
   from { opacity: 0; transform: translateY(-6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-/* Individual option */
 .option {
   padding: 9px 12px;
+  color: var(--muted);
   border-radius: 9px;
   font-size: 14px;
   font-family: inherit;
-  color: var(--muted);
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: break-word;
   cursor: pointer;
   transition: background 0.1s, color 0.1s;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .option:hover {
@@ -99,9 +115,19 @@
   color: var(--text);
 }
 
+.optionDisabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.optionDisabled:hover {
+  background: transparent;
+  color: var(--muted);
+}
+
 .optionSelected {
-  background: rgba(124, 92, 255, 0.2);
   color: var(--text);
+  background: rgba(124, 92, 255, 0.2);
   font-weight: 600;
 }
 

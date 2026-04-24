@@ -3,13 +3,20 @@
 import { useEffect, useRef, useState } from "react";
 import styles from "./Select.module.css";
 
+type SelectOption = {
+  label: string;
+  value: string;
+  disabled?: boolean;
+};
+
 interface SelectProps {
   id?: string;
   value: string;
   onChange: (value: string) => void;
-  options: string[] | { label: string; value: string }[];
+  options: string[] | SelectOption[];
   placeholder?: string;
   required?: boolean;
+  disabled?: boolean;
   className?: string;
   triggerClassName?: string;
 }
@@ -21,14 +28,14 @@ export default function Select({
   options,
   placeholder,
   required,
+  disabled,
   className,
   triggerClassName,
 }: SelectProps) {
   const [open, setOpen] = useState(false);
-  const wrapRef  = useRef<HTMLDivElement>(null);
-  const menuRef  = useRef<HTMLUListElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLUListElement>(null);
 
-  // Scroll the selected option into view whenever the dropdown opens
   useEffect(() => {
     if (!open || !menuRef.current) return;
     const selected = menuRef.current.querySelector('[aria-selected="true"]') as HTMLElement | null;
@@ -37,17 +44,17 @@ export default function Select({
     }
   }, [open]);
 
-  // Normalise options to { label, value } — filter out empty-string entries when a placeholder is used
-  const normalised = options
-    .map((o) => (typeof o === "string" ? { label: o, value: o } : o))
-    .filter((o) => !(placeholder && o.value === ""));
+  const normalised = options.map((o) => (typeof o === "string" ? { label: o, value: o } : o));
+  const hiddenOptions = placeholder && !normalised.some((o) => o.value === "")
+    ? [{ label: placeholder, value: "", disabled: false }, ...normalised]
+    : normalised;
+  const menuOptions = normalised.filter((o) => !(placeholder && o.value === ""));
 
   const isEmpty = value === "" || value === null || value === undefined;
   const selectedLabel = isEmpty && placeholder
     ? placeholder
-    : (normalised.find((o) => o.value === value)?.label ?? value);
+    : (hiddenOptions.find((o) => o.value === value)?.label ?? value);
 
-  // Close on outside click or Escape
   useEffect(() => {
     function handleMouse(e: MouseEvent) {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
@@ -63,43 +70,45 @@ export default function Select({
     };
   }, []);
 
-  function select(val: string) {
-    onChange(val);
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
+
+  function select(option: SelectOption) {
+    if (option.disabled) return;
+    onChange(option.value);
     setOpen(false);
   }
 
   return (
     <div ref={wrapRef} className={`${styles.wrap} ${className ?? ""}`}>
-      {/* Hidden native select for form validation */}
       <select
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required={required}
+        disabled={disabled}
         aria-hidden="true"
         tabIndex={-1}
         style={{ position: "absolute", opacity: 0, pointerEvents: "none", width: 0, height: 0 }}
       >
-        {normalised.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
+        {hiddenOptions.map((o) => (
+          <option key={`${o.value}-${o.label}`} value={o.value} disabled={o.disabled}>
+            {o.label}
+          </option>
         ))}
       </select>
 
-      {/* Visible trigger */}
       <button
         type="button"
         id={id ? `${id}-btn` : undefined}
-        className={`${styles.trigger} ${open ? styles.triggerOpen : ""} ${triggerClassName ?? ""}`}
-        onClick={() => setOpen((o) => !o)}
+        className={`${styles.trigger} ${open ? styles.triggerOpen : ""} ${disabled ? styles.triggerDisabled : ""} ${triggerClassName ?? ""}`}
+        onClick={() => !disabled && setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
+        disabled={disabled}
       >
-        <span
-          style={{
-            ...(triggerClassName ? {} : { overflow: "hidden", textOverflow: "ellipsis" }),
-            ...(isEmpty && placeholder ? { opacity: 0.45 } : {}),
-          }}
-        >
+        <span className={`${styles.label} ${isEmpty && placeholder ? styles.placeholder : ""}`}>
           {selectedLabel}
         </span>
         <svg
@@ -112,16 +121,16 @@ export default function Select({
         </svg>
       </button>
 
-      {/* Dropdown menu */}
       {open && (
         <ul ref={menuRef} className={styles.menu} role="listbox">
-          {normalised.map((o) => (
+          {menuOptions.map((o) => (
             <li
-              key={o.value}
+              key={`${o.value}-${o.label}`}
               role="option"
               aria-selected={o.value === value}
-              className={`${styles.option} ${o.value === value ? styles.optionSelected : ""}`}
-              onMouseDown={() => select(o.value)}
+              aria-disabled={o.disabled ? "true" : undefined}
+              className={`${styles.option} ${o.value === value ? styles.optionSelected : ""} ${o.disabled ? styles.optionDisabled : ""}`}
+              onMouseDown={() => select(o)}
             >
               {o.label}
             </li>
