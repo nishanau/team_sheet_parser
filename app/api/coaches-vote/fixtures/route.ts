@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { fixtures, coachesVotes } from "@/db/schema";
 import { and, eq, or } from "drizzle-orm";
 import { logger } from "@/lib/logger";
+import { VOTE_WINDOW } from "@/lib/constants";
 
 /** Returns a YYYY-MM-DD string for today + offsetDays in Tasmania timezone. */
 function getTasDate(offsetDays = 0): string {
@@ -49,8 +50,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const today     = getTasDate(0);
-    const yesterday = getTasDate(-1);
+    const today    = getTasDate(0);
+    const earliest = getTasDate(-VOTE_WINDOW.daysAfterMatch);
 
     // All fixtures for this team — home or away, all rounds
     const allFixtures = await db
@@ -85,11 +86,11 @@ export async function GET(req: NextRequest) {
 
     // Annotate every fixture with eligibility
     const annotated: AnnotatedCVFixture[] = allFixtures.map((f) => {
-      const inWindow = f.matchDate === today || f.matchDate === yesterday;
+      const inWindow = !VOTE_WINDOW.enforce || (f.matchDate <= today && f.matchDate >= earliest);
       const alreadyVoted = votedKeys.has(`${f.roundName}|${f.homeTeamName}|${f.awayTeamName}`);
 
       let blockReason: string | null = null;
-      if (!inWindow)      blockReason = "Outside voting window (match day and the day after only)";
+      if (!inWindow)      blockReason = `Outside voting window (within ${VOTE_WINDOW.daysAfterMatch} day(s) of match only)`;
       else if (alreadyVoted) blockReason = "Votes already submitted for this game";
 
       return { ...f, canVote: blockReason === null, blockReason };

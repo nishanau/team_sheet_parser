@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { fixtures, bestAndFairest } from "@/db/schema";
 import { and, eq, or, count } from "drizzle-orm";
 import { logger } from "@/lib/logger";
+import { VOTE_WINDOW } from "@/lib/constants";
 
 const SUBMISSION_LIMIT = 3;
 
@@ -52,8 +53,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const today     = getTasDate(0);
-    const yesterday = getTasDate(-1);
+    const today    = getTasDate(0);
+    const earliest = getTasDate(-VOTE_WINDOW.daysAfterMatch);
 
     // All fixtures for this team — home or away, all rounds
     const allFixtures = await db
@@ -73,16 +74,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ fixtures: [], submittedByRound: {} });
     }
 
-    // Count existing submissions per round for this team (as the submitting team)
+    // Count total submissions per round across all teams (global cap of 3 per round)
     const submittedRows = await db
       .select({ round: bestAndFairest.round, n: count() })
       .from(bestAndFairest)
-      .where(
-        and(
-          eq(bestAndFairest.grade,    grade),
-          eq(bestAndFairest.homeTeam, teamName), // homeTeam column = submitting team
-        )
-      )
+      .where(eq(bestAndFairest.grade, grade))
       .groupBy(bestAndFairest.round);
 
     const submittedByRound: Record<string, number> = {};
@@ -90,12 +86,12 @@ export async function GET(req: NextRequest) {
 
     // Annotate every fixture with eligibility
     const annotated: AnnotatedFixture[] = allFixtures.map((f) => {
-      const inWindow  = f.matchDate === today || f.matchDate === yesterday;
+      const inWindow  = !VOTE_WINDOW.enforce || (f.matchDate <= today && f.matchDate >= earliest);
       const usedSlots = submittedByRound[f.roundName] ?? 0;
       const underCap  = usedSlots < SUBMISSION_LIMIT;
 
       let blockReason: string | null = null;
-      if (!inWindow)       blockReason = "Outside voting window (match day and the day after only)";
+      if (!inWindow)       blockReason = `Outside voting window (within ${VOTE_WINDOW.daysAfterMatch} day(s) of match only)`;
       else if (!underCap)  blockReason = `Maximum ${SUBMISSION_LIMIT} submissions already reached for this round`;
 
       return { ...f, canVote: blockReason === null, blockReason };

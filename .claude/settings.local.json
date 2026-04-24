@@ -10,7 +10,9 @@
       "Read(//tmp/**)",
       "Bash(git:*)",
       "Bash(dir \"C:\\\\Nishan Projects\\\\Football_WebApp\\\\.worktrees\\\\feat-vote-submissions\")",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(node -e ':*)",
+      "Bash(node:*)"
     ]
   },
   "outputStyle": "Explanatory"

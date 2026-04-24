@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { coachesVotes, teamAccessCodes, teamPlayers } from "@/db/schema";
 import { and, eq, desc, or } from "drizzle-orm";
-import { ROUND_OPTIONS as ROUND_OPTIONS_ARR } from "@/lib/constants";
+import { ROUND_OPTIONS as ROUND_OPTIONS_ARR, VOTE_WINDOW } from "@/lib/constants";
 import { logger } from "@/lib/logger";
 import { toTitleCase } from "@/lib/utils";
 
@@ -67,22 +67,27 @@ export async function POST(req: NextRequest) {
     if (isNaN(new Date(matchDate).getTime())) return err("matchDate is not a valid date.");
     if (!INITIALS_RE.test(initials)) return err("initials must be letters only (max 5).");
 
-    // ── Date window: match day and the day after only (Tasmania time) ─────────
-    const tasDate = (offsetDays = 0) => {
-      const d = new Date();
-      d.setDate(d.getDate() + offsetDays);
-      return new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Australia/Hobart",
-        year: "numeric", month: "2-digit", day: "2-digit",
-      }).format(d);
-    };
-    const today     = tasDate(0);
-    const yesterday = tasDate(-1);
-    if (matchDate !== today && matchDate !== yesterday) {
-      return NextResponse.json(
-        { error: "Votes can only be submitted on match day or the day after." },
-        { status: 422 }
-      );
+    // ── Date window (Tasmania time) ───────────────────────────────────────────
+    // Controlled by VOTE_WINDOW in lib/constants.ts.
+    // enforce=false disables the check; daysAfterMatch sets how many days after
+    // the match date votes are still accepted.
+    if (VOTE_WINDOW.enforce) {
+      const tasDate = (offsetDays = 0) => {
+        const d = new Date();
+        d.setDate(d.getDate() + offsetDays);
+        return new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Australia/Hobart",
+          year: "numeric", month: "2-digit", day: "2-digit",
+        }).format(d);
+      };
+      const today    = tasDate(0);
+      const earliest = tasDate(-VOTE_WINDOW.daysAfterMatch);
+      if (matchDate > today || matchDate < earliest) {
+        return NextResponse.json(
+          { error: `Votes can only be submitted within ${VOTE_WINDOW.daysAfterMatch} day(s) of the match.` },
+          { status: 422 }
+        );
+      }
     }
 
     // ── Grade whitelist ───────────────────────────────────────────────────────

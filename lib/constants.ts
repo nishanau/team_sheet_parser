@@ -87,6 +87,15 @@ export const CV_GRADES = new Set([
   "SFL Community League Senior Men",
 ]);
 
+// ─── Voting window config ─────────────────────────────────────────────────
+// enforce: when false, the date-window check is skipped entirely (e.g. dev/testing).
+// daysAfterMatch: how many calendar days after match day votes are still accepted.
+//   0 = match day only, 1 = match day + next day, 7 = up to a week later, etc.
+export const VOTE_WINDOW = {
+  enforce:        false,
+  daysAfterMatch: 1,
+} as const;
+
 // ─── Helper: all valid grades across all competitions ─────────────────────
 export const ALL_GRADE_NAMES = new Set(Object.values(GRADE_MAP).flat());
 

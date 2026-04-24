@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { bestAndFairest, leagues, teamAccessCodes, teamPlayers } from "@/db/schema";
 import { and, eq, desc, count } from "drizzle-orm";
-import { ROUND_OPTIONS as ROUND_OPTIONS_ARR, AGE_GROUPS, GRADE_MAP } from "@/lib/constants";
+import { ROUND_OPTIONS as ROUND_OPTIONS_ARR, AGE_GROUPS, GRADE_MAP, VOTE_WINDOW } from "@/lib/constants";
 import { logger } from "@/lib/logger";
 import { toTitleCase } from "@/lib/utils";
 
@@ -124,17 +124,22 @@ export async function POST(req: NextRequest) {
     }
 
 
-    // ── Match date window: today or tomorrow (Tasmania time) ────────────────
-    const today     = getTasDate(0);
-    const yesterday = getTasDate(-1);
-    if (matchDate !== today && matchDate !== yesterday) {
-      return NextResponse.json(
-        { error: "Votes can only be submitted for matches played today or yesterday." },
-        { status: 422 }
-      );
+    // ── Date window (Tasmania time) ───────────────────────────────────────────
+    // Controlled by VOTE_WINDOW in lib/constants.ts.
+    // enforce=false disables the check; daysAfterMatch sets how many days after
+    // the match date votes are still accepted.
+    if (VOTE_WINDOW.enforce) {
+      const today    = getTasDate(0);
+      const earliest = getTasDate(-VOTE_WINDOW.daysAfterMatch);
+      if (matchDate > today || matchDate < earliest) {
+        return NextResponse.json(
+          { error: `Votes can only be submitted within ${VOTE_WINDOW.daysAfterMatch} day(s) of the match.` },
+          { status: 422 }
+        );
+      }
     }
 
-    // ── Max 3 submissions per team per round ──────────────────────────────────
+    // ── Max 3 submissions total per round (across all teams) ─────────────────
     const SUBMISSION_LIMIT = 3;
     const [countRow] = await db
       .select({ n: count() })
@@ -144,13 +149,12 @@ export async function POST(req: NextRequest) {
           eq(bestAndFairest.competition, competition),
           eq(bestAndFairest.grade,       grade ?? ""),
           eq(bestAndFairest.round,       round),
-          eq(bestAndFairest.homeTeam, submittingTeam),
         )
       );
 
     if ((countRow?.n ?? 0) >= SUBMISSION_LIMIT) {
       return NextResponse.json(
-        { error: `${submittingTeam} has already submitted the maximum ${SUBMISSION_LIMIT} votes for ${round}.` },
+        { error: `The maximum ${SUBMISSION_LIMIT} votes for ${round} have already been submitted.` },
         { status: 409 }
       );
     }
