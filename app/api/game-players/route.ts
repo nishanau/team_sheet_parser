@@ -2,8 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { teamPlayers, gamePlayersFetched } from "@/db/schema";
+import { teamPlayers, gamePlayersFetched, fixtures } from "@/db/schema";
 import { logger } from "@/lib/logger";
+
+// Cache TTLs for the (gameId, teamName) -> roster cache.
+// Short on match day because rosters churn (late ins/outs); long otherwise.
+const MATCH_DAY_TTL_MS  = 5 * 60 * 1000;        // 5 minutes
+const POST_MATCH_TTL_MS = 6 * 60 * 60 * 1000;   // 6 hours
+const TASMANIA_TZ       = "Australia/Hobart";
 
 const PLAYHQ_API = "https://api.playhq.com/graphql";
 const PLAYHQ_HEADERS = {
@@ -73,10 +79,12 @@ function extractName(player: Record<string, unknown>): {
 /**
  * GET /api/game-players?gameId=abc&teamName=Glenorchy+Senior+Men
  *
- * 1. Has (gameId, teamName) already been fetched?
- *    YES -> return all team_players rows for teamName (full accumulated roster)
- *    NO  -> fetch PlayHQ, upsert new/updated players into team_players,
- *           record in game_players_fetched, return players from this game
+ * 1. (gameId, teamName) cached AND fresh?
+ *    YES -> return team_players rows for teamName (full accumulated roster).
+ *    NO  -> fetch PlayHQ, upsert into team_players, refresh fetchedAt.
+ *
+ *    Freshness: 5 min when today (Tasmania) == fixture matchDate, 6 h otherwise.
+ *    Match day rosters churn (late ins/outs); rest of the week they're stable.
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
@@ -87,22 +95,40 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "gameId and teamName are required" }, { status: 400 });
   }
 
-  // 1. Already processed this game+team?
+  // 1. Already processed this game+team? Honour TTL: 5 min on match day, 6 hours otherwise.
   const alreadyFetched = await db
     .select()
     .from(gamePlayersFetched)
     .where(and(eq(gamePlayersFetched.gameId, gameId), eq(gamePlayersFetched.teamName, teamName)));
 
-  if (alreadyFetched.length > 0) {
-    const rows = await db.select().from(teamPlayers).where(eq(teamPlayers.teamName, teamName));
-    const players: GamePlayer[] = rows.map((r: typeof teamPlayers.$inferSelect) => ({
-      playerNumber: r.playerNumber,
-      firstName:    r.firstName,
-      lastName:     r.lastName,
-      profileId:    r.profileId,
-    }));
-    logger.debug("[game-players] cache hit", { category: "api", gameId, teamName });
-    return NextResponse.json({ players, source: "cache" });
+  const cachedRow = alreadyFetched[0];
+
+  if (cachedRow) {
+    // Look up the fixture's match date so we know which TTL to apply.
+    const fixtureRow = await db
+      .select({ matchDate: fixtures.matchDate })
+      .from(fixtures)
+      .where(eq(fixtures.id, gameId))
+      .limit(1);
+    const matchDate     = fixtureRow[0]?.matchDate ?? null;
+    const tasmaniaToday = new Intl.DateTimeFormat("en-CA", { timeZone: TASMANIA_TZ }).format(new Date());
+    const isMatchDay    = matchDate === tasmaniaToday;
+    const ttlMs         = isMatchDay ? MATCH_DAY_TTL_MS : POST_MATCH_TTL_MS;
+    const ageMs         = Date.now() - new Date(cachedRow.fetchedAt).getTime();
+
+    if (ageMs < ttlMs) {
+      const rows = await db.select().from(teamPlayers).where(eq(teamPlayers.teamName, teamName));
+      const players: GamePlayer[] = rows.map((r: typeof teamPlayers.$inferSelect) => ({
+        playerNumber: r.playerNumber,
+        firstName:    r.firstName,
+        lastName:     r.lastName,
+        profileId:    r.profileId,
+      }));
+      logger.debug("[game-players] cache hit", { category: "api", gameId, teamName, ageMs, isMatchDay });
+      return NextResponse.json({ players, source: "cache" });
+    }
+
+    logger.info("[game-players] cache stale, refetching", { category: "api", gameId, teamName, ageMs, isMatchDay });
   }
 
   // 2. Fetch from PlayHQ
@@ -210,11 +236,22 @@ export async function GET(req: NextRequest) {
         await db.update(teamPlayers).set(u.set).where(eq(teamPlayers.id, u.id));
       }
 
-      await db.insert(gamePlayersFetched).values({
-        gameId,
-        teamName,
-        fetchedAt: new Date().toISOString(),
-      });
+      // Upsert the fetch record: refresh fetchedAt if a row exists, else insert.
+      // The lookup above (`cachedRow`) tells us which path to take without
+      // needing a SELECT-for-update.
+      const now = new Date().toISOString();
+      if (cachedRow) {
+        await db
+          .update(gamePlayersFetched)
+          .set({ fetchedAt: now })
+          .where(eq(gamePlayersFetched.id, cachedRow.id));
+      } else {
+        await db.insert(gamePlayersFetched).values({
+          gameId,
+          teamName,
+          fetchedAt: now,
+        });
+      }
     } catch (err) {
       logger.error("[game-players] upsert error", { category: "api", error: String(err), gameId, teamName });
     }
