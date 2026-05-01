@@ -287,6 +287,19 @@ function BestAndFairestForm({
       }
     }
 
+    // The submitter's team can be either the home or away side of the fixture.
+    // The server only cares who they are (submittingTeam, derived from the
+    // access code) and who they played (oppositionTeam) — the home/away
+    // framing is fixture-geometry, not vote data.
+    const oppositionTeam =
+      teamName === selectedFixture.homeTeamName
+        ? selectedFixture.awayTeamName
+        : selectedFixture.homeTeamName;
+    if (teamName !== selectedFixture.homeTeamName && teamName !== selectedFixture.awayTeamName) {
+      setError("Selected fixture does not include your team. Please refresh and try again.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       // The accessCode is re-sent on every submission so the server can verify
@@ -300,8 +313,8 @@ function BestAndFairestForm({
           matchDate:   selectedFixture.matchDate,
           ageGroup,
           grade:       gradeName,
-          homeTeam:    selectedFixture.homeTeamName,
-          opposition:  selectedFixture.awayTeamName,
+          fixtureId:   selectedFixture.id,
+          oppositionTeam,
           round:       selectedFixture.roundName,
           player1Number: normalizedPlayers[0].number || null, player1Name: normalizedPlayers[0].name || null,
           player2Number: normalizedPlayers[1].number || null, player2Name: normalizedPlayers[1].name || null,

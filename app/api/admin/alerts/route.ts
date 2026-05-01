@@ -4,23 +4,23 @@ import { db } from "@/lib/db";
 import { bestAndFairest, coachesVotes, teams } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Find B&F duplicates: same (competition, grade, round, home_team) > 1 submission
+  // Find B&F duplicates: same (competition, grade, round, submitting_team) > 1 submission
   const bfDupes = await db
     .select({
       type:      sql<string>`'bf'`.as("type"),
       grade:     bestAndFairest.grade,
       round:     bestAndFairest.round,
-      team:      bestAndFairest.homeTeam,
+      team:      bestAndFairest.submittingTeam,
       count:     sql<number>`COUNT(*)`.as("count"),
       firstDate: sql<string>`MIN(created_at)`.as("firstDate"),
       lastDate:  sql<string>`MAX(created_at)`.as("lastDate"),
     })
     .from(bestAndFairest)
-    .groupBy(bestAndFairest.competition, bestAndFairest.grade, bestAndFairest.round, bestAndFairest.homeTeam)
+    .groupBy(bestAndFairest.competition, bestAndFairest.grade, bestAndFairest.round, bestAndFairest.submittingTeam)
     .having(sql`COUNT(*) > 1`);
 
   // Find Coaches Vote duplicates: same (grade, round, coach_team) > 1 submission

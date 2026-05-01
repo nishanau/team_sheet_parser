@@ -36,26 +36,26 @@ export async function POST(req: NextRequest) {
     }
     const b = body as Record<string, unknown>;
 
-    const accessCode = str(b.accessCode, 9);
-    const competition = str(b.competition, 50);
-    const matchDate = str(b.matchDate, 10);
-    const ageGroup = str(b.ageGroup, 50);
-    const grade = str(b.grade, 200);
-    const homeTeam = str(b.homeTeam, 100);
-    const opposition = str(b.opposition, 100);
-    const round = str(b.round, 30);
-    const submitterName = str(b.submitterName, 100);
-    const initials = str(b.signatureDataUrl, 5);
+    const accessCode      = str(b.accessCode, 9);
+    const competition     = str(b.competition, 50);
+    const matchDate       = str(b.matchDate, 10);
+    const ageGroup        = str(b.ageGroup, 50);
+    const grade           = str(b.grade, 200);
+    const fixtureId       = str(b.fixtureId, 100);
+    const oppositionTeam  = str(b.oppositionTeam, 100);
+    const round           = str(b.round, 30);
+    const submitterName   = str(b.submitterName, 100);
+    const initials        = str(b.signatureDataUrl, 5);
 
-    if (!accessCode) return err("accessCode is required.");
-    if (!competition) return err("competition is required.");
-    if (!matchDate) return err("matchDate is required.");
-    if (!ageGroup) return err("ageGroup is required.");
-    if (!homeTeam) return err("homeTeam is required.");
-    if (!opposition) return err("opposition is required.");
-    if (!round) return err("round is required.");
-    if (!submitterName) return err("submitterName is required.");
-    if (!initials) return err("initials are required (max 5 chars).");
+    if (!accessCode)     return err("accessCode is required.");
+    if (!competition)    return err("competition is required.");
+    if (!matchDate)      return err("matchDate is required.");
+    if (!ageGroup)       return err("ageGroup is required.");
+    if (!fixtureId)      return err("fixtureId is required.");
+    if (!oppositionTeam) return err("oppositionTeam is required.");
+    if (!round)          return err("round is required.");
+    if (!submitterName)  return err("submitterName is required.");
+    if (!initials)       return err("initials are required (max 5 chars).");
 
     if (!DATE_RE.test(matchDate)) return err("matchDate must be YYYY-MM-DD.");
     if (isNaN(new Date(matchDate).getTime())) return err("matchDate is not a valid date.");
@@ -83,7 +83,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (!ROUND_OPTIONS.has(round)) return err(`Unknown round: "${round}".`);
-    if (homeTeam === opposition) return err("Home team and opposition cannot be the same.");
 
     const [codeRow] = await db
       .select({ teamName: teamAccessCodes.teamName, gradeName: teamAccessCodes.gradeName })
@@ -110,25 +109,50 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (submittingTeam === oppositionTeam) {
+      return err("Submitting team and opposition team cannot be the same.");
+    }
+
+    // Look up the fixture by id and verify it actually pairs submittingTeam with
+    // oppositionTeam (in either home/away orientation). This is the only check
+    // that catches a tampered/desynced client trying to submit votes for a
+    // fixture they didn't play.
     const [fixtureRow] = await db
-      .select({ id: fixtures.id })
+      .select({
+        id:           fixtures.id,
+        gradeName:    fixtures.gradeName,
+        roundName:    fixtures.roundName,
+        matchDate:    fixtures.matchDate,
+        homeTeamName: fixtures.homeTeamName,
+        awayTeamName: fixtures.awayTeamName,
+      })
       .from(fixtures)
-      .where(
-        and(
-          eq(fixtures.gradeName, effectiveGrade ?? ""),
-          eq(fixtures.roundName, round),
-          eq(fixtures.homeTeamName, homeTeam),
-          eq(fixtures.awayTeamName, opposition),
-        ),
-      )
+      .where(eq(fixtures.id, fixtureId))
       .limit(1);
+
+    if (!fixtureRow) {
+      return err("Fixture not found.");
+    }
+
+    if (
+      fixtureRow.gradeName !== effectiveGrade ||
+      fixtureRow.roundName !== round ||
+      fixtureRow.matchDate !== matchDate
+    ) {
+      return err("Fixture does not match selected grade, round, and match date.");
+    }
+
+    const sides = new Set([fixtureRow.homeTeamName, fixtureRow.awayTeamName]);
+    if (!sides.has(submittingTeam) || !sides.has(oppositionTeam)) {
+      return err("Fixture does not match submitting team and opposition.");
+    }
 
     const { inWindow } = await resolveVoteWindow(
       matchDate,
       competition,
       effectiveGrade ?? "",
       round,
-      fixtureRow?.id ?? null,
+      fixtureRow.id,
     );
 
     if (!inWindow) {
@@ -224,8 +248,8 @@ export async function POST(req: NextRequest) {
         matchDate,
         ageGroup,
         grade: effectiveGrade ?? null,
-        homeTeam: submittingTeam,
-        opposition,
+        submittingTeam,
+        opposition: oppositionTeam,
         round,
         player1Number: p1.num,
         player1Name: toTitleCase(p1.name),
@@ -247,7 +271,7 @@ export async function POST(req: NextRequest) {
       grade: effectiveGrade,
       round,
       submittingTeam,
-      opposition,
+      oppositionTeam,
     });
 
     return NextResponse.json({ success: true, id: inserted.id }, { status: 201 });

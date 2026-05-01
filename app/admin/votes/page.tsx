@@ -60,7 +60,7 @@ function BfCard({ sub }: { sub: BestAndFairestSelect }) {
   return (
     <div className={styles.card}>
       <div className={styles.cardHeader}>
-        <span className={styles.matchup}>{sub.homeTeam} vs {sub.opposition}</span>
+        <span className={styles.matchup}>{sub.submittingTeam} vs {sub.opposition}</span>
         <span className={styles.meta}>{formatDate(sub.matchDate)}</span>
       </div>
       <span className={styles.badge}>{sub.competition} · {sub.ageGroup}</span>

@@ -118,8 +118,12 @@ export const bestAndFairest = sqliteTable("best_and_fairest", {
   matchDate:   text("match_date").notNull(),            // YYYY-MM-DD (Tasmania time)
   ageGroup:    text("age_group").notNull(),
   grade:       text("grade"),                          // e.g. "SFL Premier League Senior Men"
-  opposition:  text("opposition").notNull(),
-  homeTeam:    text("home_team"),                       // team submitter coaches
+  // The team that submitted these votes and the team they played against.
+  // Note: DB column is still named "home_team" for legacy reasons; the field
+  // never represented "the home side of the fixture" — it was always the submitter.
+  // Rename pending a future migration once all consumers use submittingTeam.
+  submittingTeam: text("home_team"),
+  opposition:     text("opposition").notNull(),
   round:       text("round").notNull(),                 // e.g. "Round 1"
 
   // 5 vote entries: position 1 = 5 votes … position 5 = 1 vote
