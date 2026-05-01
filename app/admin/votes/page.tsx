@@ -9,7 +9,8 @@ import styles from "./votes.module.css";
 
 const VOTE_WEIGHTS = [5, 4, 3, 2, 1] as const;
 
-type ApiResponse = { bf: BestAndFairestSelect[]; coaches: CoachesVoteSelect[] };
+type BfSubmission = BestAndFairestSelect & { homeTeam?: string | null };
+type ApiResponse = { bf: BfSubmission[]; coaches: CoachesVoteSelect[] };
 
 function allGradesFor(competition: string) {
   return Object.entries(GRADE_MAP)
@@ -56,11 +57,13 @@ function PlayerList({ sub }: { sub: BestAndFairestSelect | CoachesVoteSelect }) 
   );
 }
 
-function BfCard({ sub }: { sub: BestAndFairestSelect }) {
+function BfCard({ sub }: { sub: BfSubmission }) {
+  const submittingTeam = sub.submittingTeam ?? sub.homeTeam ?? "";
+
   return (
     <div className={styles.card}>
       <div className={styles.cardHeader}>
-        <span className={styles.matchup}>{sub.submittingTeam} vs {sub.opposition}</span>
+        <span className={styles.matchup}>{submittingTeam} vs {sub.opposition}</span>
         <span className={styles.meta}>{formatDate(sub.matchDate)}</span>
       </div>
       <span className={styles.badge}>{sub.competition} · {sub.ageGroup}</span>
