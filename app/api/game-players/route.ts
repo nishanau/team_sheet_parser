@@ -191,7 +191,13 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  // 3. Upsert into team_players + record the fetch (fire-and-forget)
+  // 3. Upsert into team_players + record the fetch.
+  //
+  // This MUST complete before we respond: the vote-submit endpoints validate
+  // picked jumper numbers against the persisted team_players table, so if a
+  // caller renders this fresh roster and submits before the write lands, new
+  // players show in the picker but get rejected as "not on the roster". The
+  // upsert is batched into ~3 round-trips, so awaiting it is cheap.
   logger.info("[game-players] fetched from PlayHQ", {
     category: "api",
     gameId,
@@ -201,7 +207,7 @@ export async function GET(req: NextRequest) {
   });
   // One SELECT to load all existing players for the team, then bulk insert/update
   // instead of N+1 round-trips to Turso.
-  (async () => {
+  await (async () => {
     try {
       const existing = await db.select().from(teamPlayers).where(eq(teamPlayers.teamName, teamName));
 

@@ -29,33 +29,54 @@ type VoteRow = {
   player4Name: string | null; player4Number: string | null;
   player5Name: string | null; player5Number: string | null;
   round: string;
+  /** Best & Fairest only — the team that submitted these votes, i.e. the team
+   *  every voted player belongs to. Coaches votes have no single such team
+   *  (players come from either side), so this is undefined for them. */
+  submittingTeam?: string | null;
 };
 
 /** Extract all (playerName, playerNumber, votes, round) from a set of vote rows.
- *  `team` is left as an empty string here — it is resolved later via teamPlayers lookup. */
+ *  For Best & Fairest the team is known up front (the submitting team); for coaches
+ *  votes it stays "" and is resolved later via the roster lookup. */
 function extractVotes(rows: VoteRow[]): VoteEntry[] {
   const result: VoteEntry[] = [];
   for (const row of rows) {
+    const rowTeam = row.submittingTeam?.trim() ?? "";
     for (let i = 0; i < 5; i++) {
       const [nameKey, numKey] = PLAYER_FIELDS[i];
       const name = row[nameKey];
       if (!name) continue;
-      result.push({ playerName: name, playerNumber: row[numKey] ?? null, team: "", votes: VOTE_WEIGHTS[i], round: row.round });
+      result.push({ playerName: name, playerNumber: row[numKey] ?? null, team: rowTeam, votes: VOTE_WEIGHTS[i], round: row.round });
     }
   }
   return result;
 }
 
-/** Resolve the team for each entry using a roster map ("number::fullName" → teamName).
- *  Entries whose player cannot be matched are assigned team = "". */
-function resolveTeams(entries: VoteEntry[], roster: Map<string, string>): VoteEntry[] {
-  return entries.map((e) => ({
-    ...e,
-    team: roster.get(`${e.playerNumber ?? ""}::${e.playerName.trim().toLowerCase()}`) ?? "",
-  }));
+type RosterMatch = { teamName: string; playerNumber: string | null };
+
+/** Resolve each entry's team (and canonical jumper number) from a name → roster map.
+ *  Player numbers change between rounds, but a player's name+team does not — so we
+ *  match purely on name and adopt the roster's current number for display/grouping.
+ *
+ *  Entries that already carry a team (Best & Fairest, where the submitting team is
+ *  authoritative) keep that team; we only borrow the roster's number, and only when
+ *  the matched roster player is actually on that team — so a same-name player in
+ *  another grade can't hijack the number. Entries with no team and no match keep
+ *  team = "" and their original number. */
+function resolveTeams(entries: VoteEntry[], roster: Map<string, RosterMatch>): VoteEntry[] {
+  return entries.map((e) => {
+    const match = roster.get(e.playerName.trim().toLowerCase());
+    if (!match) return e;
+    if (e.team) {
+      return match.teamName === e.team ? { ...e, playerNumber: match.playerNumber } : e;
+    }
+    return { ...e, team: match.teamName, playerNumber: match.playerNumber };
+  });
 }
 
-// Unique key: name + number + team (number differentiates same-name players)
+// Unique key: name + number + team. After resolveTeams the number is the roster's
+// current value, so a player's votes across rounds collapse into one row while two
+// genuinely different same-name players on a team stay separate.
 function playerKey(e: VoteEntry) {
   return `${e.playerName}::${e.playerNumber ?? ""}::${e.team}`;
 }
@@ -131,33 +152,41 @@ export async function GET(req: NextRequest) {
       if (scopedTeamNames.length === 0) return NextResponse.json({ rows: [], rounds: [], totals: { bf: 0, coaches: 0 } });
     }
 
-    // Build a "number::fullName" → teamName roster map so cross-team number collisions
-    // don't cause a player to be attributed to the wrong club.
-    function buildRoster(rows: { playerNumber: string | null; firstName: string; lastName: string; teamName: string }[]): Map<string, string> {
-      const map = new Map<string, string>();
+    // Build a "fullName" → { teamName, playerNumber } roster map. Names are stable
+    // across rounds; numbers are not — so we key on name and carry the current
+    // number along for display. (Same-name players on different teams: last write
+    // wins — rare enough to accept, and was already the behaviour for exact keys.)
+    function buildRoster(rows: { playerNumber: string | null; firstName: string; lastName: string; teamName: string }[]): Map<string, RosterMatch> {
+      const map = new Map<string, RosterMatch>();
       for (const r of rows) {
-        if (!r.playerNumber) continue;
-        const key = `${r.playerNumber}::${r.firstName.trim().toLowerCase()} ${r.lastName.trim().toLowerCase()}`;
-        map.set(key, r.teamName);
+        const key = `${r.firstName.trim().toLowerCase()} ${r.lastName.trim().toLowerCase()}`.trim();
+        if (!key) continue;
+        map.set(key, { teamName: r.teamName, playerNumber: r.playerNumber });
       }
       return map;
     }
 
-    let rosterByNumber: Map<string, string>;
-    if (scopedTeamNames) {
-      // Club admin — look up roster for their specific teams only
-      const roster = await db
-        .select({ playerNumber: teamPlayers.playerNumber, firstName: teamPlayers.firstName, lastName: teamPlayers.lastName, teamName: teamPlayers.teamName })
-        .from(teamPlayers)
-        .where(inArray(teamPlayers.teamName, scopedTeamNames));
-      rosterByNumber = buildRoster(roster);
-    } else {
-      // Superadmin — full roster to resolve team labels
-      const roster = await db
-        .select({ playerNumber: teamPlayers.playerNumber, firstName: teamPlayers.firstName, lastName: teamPlayers.lastName, teamName: teamPlayers.teamName })
-        .from(teamPlayers);
-      rosterByNumber = buildRoster(roster);
+    // Restrict the roster used for name → team resolution to the teams that play in
+    // the grade being viewed. Without this, a player's name in (say) the U18 grade
+    // could match a same-name player in the Senior grade and be mislabelled.
+    // Club admins are already narrowed to their own teams; superadmins are narrowed
+    // to the grade's teams when a grade is selected, and only fall back to the full
+    // table for the cross-grade "all" view (where Best & Fairest entries carry their
+    // own submitting team anyway).
+    let rosterTeamNames: string[] | null = scopedTeamNames;
+    if (!rosterTeamNames && grade) {
+      const gradeTeams = await db
+        .select({ name: teams.name })
+        .from(teams)
+        .where(eq(teams.gradeName, grade));
+      rosterTeamNames = gradeTeams.map((t) => t.name);
     }
+
+    const rosterRows = await db
+      .select({ playerNumber: teamPlayers.playerNumber, firstName: teamPlayers.firstName, lastName: teamPlayers.lastName, teamName: teamPlayers.teamName })
+      .from(teamPlayers)
+      .where(rosterTeamNames ? inArray(teamPlayers.teamName, rosterTeamNames) : undefined);
+    const rosterByName = buildRoster(rosterRows);
 
     let rawEntries: VoteEntry[];
 
@@ -177,7 +206,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Resolve each player's team from the roster
-    let entries = resolveTeams(rawEntries, rosterByNumber);
+    let entries = resolveTeams(rawEntries, rosterByName);
 
     // Club admins: keep only entries whose resolved team is one of their teams
     if (scopedTeamNames) {
